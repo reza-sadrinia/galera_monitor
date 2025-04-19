@@ -1,0 +1,21 @@
+nodes:
+  - host: "node1.example.com"
+    user: "root"
+    password: "your_password"
+    port: 3306
+  - host: "node2.example.com"
+    user: "root"
+    password: "your_password"
+    port: 3306
+  - host: "node3.example.com"
+    user: "root"
+    password: "your_password"
+    port: 3306
+
+haproxy:
+  host: "haproxy.example.com"
+  stats_port: port_number
+  stats_path: "/stats;csv"
+  stats_user: "admin"
+  stats_password: "your_password"
+  backend_name: "galera_cluster_backend"
