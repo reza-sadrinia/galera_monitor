@@ -223,6 +223,13 @@
       padding: 2px 8px;
       font-size: 0.85em;
     }
+
+    .metric-value-wrap {
+      white-space: normal !important;
+      word-break: break-all;
+      max-width: 100%;
+      display: inline-block;
+    }
   </style>
 </head>
 
@@ -377,6 +384,14 @@
               <div class="metric-row">
                 <span class="metric-label">Lock Tables:</span>
                 <span class="metric-value">${formatMetricValue(status.Com_lock_tables, 'number')}</span>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">wsrep_local_state_comment:</span>
+                <span class="metric-value metric-value-wrap">${formatMetricValue(status.wsrep_local_state_comment)}</span>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">wsrep_cluster_status:</span>
+                <span class="metric-value">${formatMetricValue(status.wsrep_cluster_status)}</span>
               </div>
             </div>
 
