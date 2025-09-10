@@ -53,3 +53,44 @@ http://localhost:5000
 ## License
 
 MIT License 
+
+## Alerts (Telegram)
+
+You can enable Telegram alerts for key events:
+
+- Node leaves cluster / unsynced / not primary
+- Flow control active or paused beyond a threshold
+- QPS/WPS below or above thresholds
+- HAProxy current connections above critical threshold
+
+Add to your `config.yaml`:
+
+```yaml
+telegram:
+  enabled: true
+  bot_token: "123456789:ABCDEF_your_bot_token_here"
+  chat_id: "-1001122334455"
+
+alerts:
+  enabled: true
+  cooldown_seconds: 300
+  node:
+    offline: true
+  flow_control:
+    active: true
+    paused_threshold: 0.05
+  qps:
+    min: 10
+    max: 5000
+  wps:
+    min: 1
+    max: 2000
+  haproxy:
+    connections_critical: 800
+```
+
+Notes:
+
+- Cooldown prevents alert flooding per node/condition.
+- `chat_id` can be a user, group, or channel ID. For groups, ensure the bot is added.
+- Alerts are evaluated whenever `/api/status` is requested (UI refresh or API call).

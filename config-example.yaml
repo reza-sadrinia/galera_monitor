@@ -19,3 +19,25 @@ haproxy:
   stats_user: "admin"
   stats_password: "your_password"
   backend_name: "galera_cluster_backend"
+
+telegram:
+  enabled: false
+  bot_token: "123456789:ABCDEF_your_bot_token_here"
+  chat_id: "-1001122334455"  # channel/group/user ID
+
+alerts:
+  enabled: true
+  cooldown_seconds: 300  # avoid alert flooding
+  node:
+    offline: true  # alert if node unsynced/not primary/error
+  flow_control:
+    active: true           # alert if active == true
+    paused_threshold: 0.05 # alert if wsrep_flow_control_paused >= this
+  qps:
+    min: null              # set to a number to enable
+    max: null
+  wps:
+    min: null
+    max: null
+  haproxy:
+    connections_critical: null  # set to e.g. 500
