@@ -493,9 +493,11 @@
         if (!chartsContainer) return;
         chartsContainer.innerHTML = nodes.map(node => {
           const hostId = safeId(node.host);
+          const arr = delayHistoryByHost[node.host] || [];
+          const latest = arr.length ? Math.round(arr[arr.length - 1].v || 0) : 0;
           return `
             <div class="metric-group" style="grid-column: 1 / -1;">
-              <div class="group-title">${node.host} — Replication Delay (wsrep_local_recv_queue)</div>
+              <div class="group-title">${node.host} — Replication Delay (wsrep_local_recv_queue) — Waiting: ${latest} tx</div>
               <div id="chart-delay-${hostId}" style="height: 180px;"></div>
             </div>
           `;
@@ -517,7 +519,7 @@
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
             xaxis: { color: '#aaa', gridcolor: '#333', showgrid: true, tickfont: { color: '#aaa', size: 10 }, showspikes: true, spikemode: 'across' },
-            yaxis: { color: '#aaa', gridcolor: '#333', zerolinecolor: '#444', tickfont: { color: '#aaa', size: 10 } },
+            yaxis: { color: '#aaa', gridcolor: '#333', zerolinecolor: '#444', tickfont: { color: '#aaa', size: 10 }, rangemode: 'tozero' },
             showlegend: false
           }, { displayModeBar: false, responsive: true });
         });
