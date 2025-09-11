@@ -498,6 +498,7 @@
         }
 
         function hapEnable(host) {
+          if (!confirm('Enable traffic to ' + host + ' in HAProxy?')) return;
           fetch('/api/haproxy/server/enable', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -512,6 +513,7 @@
         }
 
         function hapDisable(host) {
+          if (!confirm('Disable traffic to ' + host + ' in HAProxy?')) return;
           fetch('/api/haproxy/server/disable', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
