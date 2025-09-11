@@ -1,4 +1,5 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
+import subprocess
 import mysql.connector
 import yaml
 from datetime import datetime, timedelta
@@ -95,13 +96,123 @@ def get_haproxy_stats():
     except Exception:
         return {}
 
+def get_haproxy_server_states():
+    """Return mapping host_ip -> {'current': int, 'status': str}
+    Parses HAProxy CSV for given backend.
+    """
+    config = load_config()
+    haproxy_config = config.get('haproxy', {})
+    if not haproxy_config:
+        return {}
+    try:
+        url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{haproxy_config['stats_path']}"
+        response = requests.get(
+            url,
+            auth=HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password']),
+            timeout=5
+        )
+        if response.status_code != 200:
+            return {}
+        lines = response.text.strip().split('\n')
+        headers = lines[0].split(',')
+        result = {}
+        nodes = config.get('nodes', [])
+        server_mapping = {f"node{i+1}": node['host'] for i, node in enumerate(nodes)}
+        backend_name = haproxy_config.get('backend_name', 'galera_cluster_backend')
+        for line in lines[1:]:
+            fields = line.split(',')
+            if len(fields) >= len(headers):
+                data = dict(zip(headers, fields))
+                if data['# pxname'] == backend_name and data['svname'] not in ['FRONTEND', 'BACKEND']:
+                    server_name = data['svname']
+                    if server_name in server_mapping:
+                        server_ip = server_mapping[server_name]
+                        try:
+                            cur = int(data.get('scur', 0))
+                        except ValueError:
+                            cur = 0
+                        result[server_ip] = {
+                            'current': cur,
+                            'status': data.get('status', '')
+                        }
+        return result
+    except Exception:
+        return {}
+
+def get_haproxy_admin_url_and_auth():
+    """Derive HAProxy admin URL (HTML endpoint) and auth from config.
+    We reuse stats credentials. If stats_path ends with ';csv', we strip it for admin actions.
+    """
+    config = load_config()
+    haproxy_config = config.get('haproxy', {})
+    if not haproxy_config:
+        return None, None
+    path = str(haproxy_config.get('stats_path') or '/stats')
+    # Strip CSV suffix if present
+    path_admin = path.replace(';csv', '')
+    url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{path_admin}"
+    auth = HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password'])
+    return url, auth
+
+def haproxy_admin_server_action(backend_name, server_name, action):
+    """Perform enable/disable on a backend server via HAProxy stats admin HTTP.
+
+    action: 'enable' or 'disable'
+    Returns (ok: bool, message: str)
+    """
+    url, auth = get_haproxy_admin_url_and_auth()
+    if not url:
+        return False, 'HAProxy config not found'
+    if action not in ['enable', 'disable']:
+        return False, 'Unsupported action'
+    try:
+        # First try the common form: action=enable|disable
+        resp = requests.post(
+            url,
+            data={'b': backend_name, 's': server_name, 'action': action},
+            auth=auth,
+            timeout=5
+        )
+        if resp.status_code in [200, 303, 302]:
+            return True, 'OK'
+        # Fallback older form: action="enable server"|"disable server"
+        resp2 = requests.post(
+            url,
+            data={'b': backend_name, 's': server_name, 'action': f'{action} server'},
+            auth=auth,
+            timeout=5
+        )
+        if resp2.status_code in [200, 303, 302]:
+            return True, 'OK'
+        return False, f"HTTP {resp.status_code}/{resp2.status_code}"
+    except Exception as e:
+        return False, str(e)
+
+def get_haproxy_server_name_for_host(host: str) -> str:
+    """Resolve HAProxy server name given node host.
+    - If node has 'haproxy_server' in config, use it.
+    - Else default to node{i+1} by order in nodes list.
+    If no match, return the original host.
+    """
+    try:
+        cfg = load_config()
+        nodes = cfg.get('nodes') or []
+        for idx, node in enumerate(nodes):
+            if str(node.get('host')) == str(host):
+                if node.get('haproxy_server'):
+                    return str(node['haproxy_server'])
+                return f"node{idx+1}"
+    except Exception:
+        pass
+    return host
+
 def get_node_status(node_config):
     try:
         current_time = datetime.now()
         node_key = node_config['host']
         
         # Get HAProxy stats first
-        haproxy_stats = get_haproxy_stats()
+        haproxy_states = get_haproxy_server_states()
         
         conn = mysql.connector.connect(
             host=node_config['host'],
@@ -155,8 +266,10 @@ def get_node_status(node_config):
         for metric in server_metrics:
             status[metric] = global_status.get(metric, '0')
             
-        # Add HAProxy current connections
-        status['haproxy_current'] = haproxy_stats.get(node_config['host'], 0)
+        # Add HAProxy current connections and state
+        hap_state = haproxy_states.get(node_config['host'], {})
+        status['haproxy_current'] = hap_state.get('current', 0)
+        status['haproxy_status'] = hap_state.get('status', '-')
         
         # Get wsrep_provider_options
         cursor.execute("SHOW VARIABLES LIKE 'wsrep_provider_options'")
@@ -196,6 +309,13 @@ def get_node_status(node_config):
                 status['reads_per_second'] = 0
                 status['queries_per_second'] = 0
         else:
+            status['writes_per_second'] = 0
+            status['reads_per_second'] = 0
+            status['queries_per_second'] = 0
+
+        # If HAProxy marks server as MAINT/DOWN, zero out rates for UI clarity
+        hap_stat_str = str(status.get('haproxy_status') or '').upper()
+        if any(x in hap_stat_str for x in ['MAINT', 'DOWN']):
             status['writes_per_second'] = 0
             status['reads_per_second'] = 0
             status['queries_per_second'] = 0
@@ -265,6 +385,15 @@ def get_alert_config():
         'alerts': merge_dict(defaults, alerts_cfg),
         'telegram': telegram_cfg
     }
+
+def get_restart_command():
+    cfg = load_config()
+    # Allow override via config.yaml → haproxy.restart_command
+    cmd = (cfg.get('haproxy', {}) or {}).get('restart_command')
+    if cmd:
+        return cmd
+    # sensible default for most Linux distros
+    return 'systemctl restart haproxy'
 
 def telegram_enabled(telegram_cfg):
     return bool(telegram_cfg.get('enabled')) and bool(telegram_cfg.get('bot_token')) and bool(telegram_cfg.get('chat_id'))
@@ -425,6 +554,38 @@ def get_cluster_status():
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
+
+@app.route('/api/haproxy/server/<action>', methods=['POST'])
+def api_haproxy_server_action(action):
+    try:
+        body = request.get_json(silent=True) or {}
+        backend = body.get('backend') or load_config().get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
+        server = body.get('server')
+        host = body.get('host')
+        if not server:
+            if not host:
+                return jsonify({'ok': False, 'error': 'server or host is required'}), 400
+            server = get_haproxy_server_name_for_host(host)
+        ok, msg = haproxy_admin_server_action(backend, server, action)
+        return jsonify({'ok': ok, 'message': msg}), (200 if ok else 500)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/haproxy/restart', methods=['POST'])
+def api_haproxy_restart():
+    try:
+        cmd = get_restart_command()
+        # Execute the restart command locally. SECURITY: In production, protect this endpoint!
+        completed = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+        ok = completed.returncode == 0
+        return jsonify({
+            'ok': ok,
+            'returncode': completed.returncode,
+            'stdout': completed.stdout,
+            'stderr': completed.stderr
+        }), (200 if ok else 500)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
