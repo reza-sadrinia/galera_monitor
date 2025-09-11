@@ -270,7 +270,7 @@
   <script>
       // -------- Real-time charting state --------
       const delayHistoryByHost = {}; // { host: [{t: timestamp_ms, v: number}, ...] }
-      const MAX_POINTS = 100; // keep last N points per node
+      const MAX_POINTS = 1000; // keep last N points per node
 
       function safeId(text) {
         return String(text || '').replace(/[^a-zA-Z0-9_-]/g, '_');
