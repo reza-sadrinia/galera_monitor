@@ -1,2 +1,7 @@
 config.yaml
 venv
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+*.pyd
