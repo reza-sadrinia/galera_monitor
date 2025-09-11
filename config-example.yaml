@@ -3,14 +3,17 @@ nodes:
     user: "root"
     password: "your_password"
     port: 3306
+    haproxy_server: "node1"
   - host: "node2.example.com"
     user: "root"
     password: "your_password"
     port: 3306
+    haproxy_server: "node2"
   - host: "node3.example.com"
     user: "root"
     password: "your_password"
     port: 3306
+    haproxy_server: "node3"
 
 haproxy:
   host: "haproxy.example.com"
