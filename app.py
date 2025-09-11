@@ -8,14 +8,19 @@ import re
 import time
 import requests
 from requests.auth import HTTPBasicAuth
+from src.state import previous_readings, alert_state
+from src.haproxy import (
+    get_haproxy_stats as _hap_stats,
+    get_haproxy_server_states as _hap_states,
+    get_haproxy_admin_url_and_auth as _hap_admin_url_auth,
+    haproxy_admin_server_action as _hap_admin_action
+)
+from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates
+from src.alerts import evaluate_alerts as _evaluate_alerts
 
 app = Flask(__name__)
 
-# Store previous readings for each node
-previous_readings = {}
-
-# Store alert state (e.g., last sent timestamps) to prevent alert flooding
-alert_state = {}
+# State moved to src/state (imported above)
 
 def load_config():
     with open('config.yaml', 'r') as file:
@@ -46,113 +51,15 @@ def calculate_rate(current_value, previous_value, current_time, previous_time):
     return round(value_diff / time_diff, 2)
 
 def get_haproxy_stats():
-    config = load_config()
-    haproxy_config = config.get('haproxy', {})
-    
-    if not haproxy_config:
-        return {}
-    
-    try:
-        url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{haproxy_config['stats_path']}"
-        response = requests.get(
-            url,
-            auth=HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password']),
-            timeout=5
-        )
-        
-        if response.status_code != 200:
-            return {}
-        
-        # Parse CSV response
-        lines = response.text.strip().split('\n')
-        headers = lines[0].split(',')
-        current_by_server = {}
-        
-        # Create server mapping from config
-        nodes = config.get('nodes', [])
-        server_mapping = {
-            f"node{i+1}": node['host'] 
-            for i, node in enumerate(nodes)
-        }
-        
-        # Get backend name from config or use default
-        backend_name = haproxy_config.get('backend_name', 'galera_cluster_backend')
-        
-        for line in lines[1:]:
-            fields = line.split(',')
-            if len(fields) >= len(headers):
-                data = dict(zip(headers, fields))
-                # Process galera cluster backend servers
-                if data['# pxname'] == backend_name and data['svname'] not in ['FRONTEND', 'BACKEND']:
-                    server_name = data['svname']
-                    if server_name in server_mapping:
-                        server_ip = server_mapping[server_name]
-                        try:
-                            current_by_server[server_ip] = int(data.get('scur', 0))
-                        except ValueError:
-                            pass
-        
-        return current_by_server
-    except Exception:
-        return {}
+    # delegate to src.haproxy without changing behavior
+    return _hap_stats(load_config)
 
 def get_haproxy_server_states():
-    """Return mapping host_ip -> {'current': int, 'status': str}
-    Parses HAProxy CSV for given backend.
-    """
-    config = load_config()
-    haproxy_config = config.get('haproxy', {})
-    if not haproxy_config:
-        return {}
-    try:
-        url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{haproxy_config['stats_path']}"
-        response = requests.get(
-            url,
-            auth=HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password']),
-            timeout=5
-        )
-        if response.status_code != 200:
-            return {}
-        lines = response.text.strip().split('\n')
-        headers = lines[0].split(',')
-        result = {}
-        nodes = config.get('nodes', [])
-        server_mapping = {f"node{i+1}": node['host'] for i, node in enumerate(nodes)}
-        backend_name = haproxy_config.get('backend_name', 'galera_cluster_backend')
-        for line in lines[1:]:
-            fields = line.split(',')
-            if len(fields) >= len(headers):
-                data = dict(zip(headers, fields))
-                if data['# pxname'] == backend_name and data['svname'] not in ['FRONTEND', 'BACKEND']:
-                    server_name = data['svname']
-                    if server_name in server_mapping:
-                        server_ip = server_mapping[server_name]
-                        try:
-                            cur = int(data.get('scur', 0))
-                        except ValueError:
-                            cur = 0
-                        result[server_ip] = {
-                            'current': cur,
-                            'status': data.get('status', '')
-                        }
-        return result
-    except Exception:
-        return {}
+    # delegate to src.haproxy without changing behavior
+    return _hap_states(load_config)
 
 def get_haproxy_admin_url_and_auth():
-    """Derive HAProxy admin URL (HTML endpoint) and auth from config.
-    We reuse stats credentials. If stats_path ends with ';csv', we strip it for admin actions.
-    """
-    config = load_config()
-    haproxy_config = config.get('haproxy', {})
-    if not haproxy_config:
-        return None, None
-    path = str(haproxy_config.get('stats_path') or '/stats')
-    # Strip CSV suffix if present
-    path_admin = path.replace(';csv', '')
-    url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{path_admin}"
-    auth = HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password'])
-    return url, auth
+    return _hap_admin_url_auth(load_config)
 
 def haproxy_admin_server_action(backend_name, server_name, action):
     """Perform enable/disable on a backend server via HAProxy stats admin HTTP.
@@ -160,33 +67,8 @@ def haproxy_admin_server_action(backend_name, server_name, action):
     action: 'enable' or 'disable'
     Returns (ok: bool, message: str)
     """
-    url, auth = get_haproxy_admin_url_and_auth()
-    if not url:
-        return False, 'HAProxy config not found'
-    if action not in ['enable', 'disable']:
-        return False, 'Unsupported action'
-    try:
-        # First try the common form: action=enable|disable
-        resp = requests.post(
-            url,
-            data={'b': backend_name, 's': server_name, 'action': action},
-            auth=auth,
-            timeout=5
-        )
-        if resp.status_code in [200, 303, 302]:
-            return True, 'OK'
-        # Fallback older form: action="enable server"|"disable server"
-        resp2 = requests.post(
-            url,
-            data={'b': backend_name, 's': server_name, 'action': f'{action} server'},
-            auth=auth,
-            timeout=5
-        )
-        if resp2.status_code in [200, 303, 302]:
-            return True, 'OK'
-        return False, f"HTTP {resp.status_code}/{resp2.status_code}"
-    except Exception as e:
-        return False, str(e)
+    # delegate to src.haproxy without changing behavior
+    return _hap_admin_action(load_config, backend_name, server_name, action)
 
 def get_haproxy_server_name_for_host(host: str) -> str:
     """Resolve HAProxy server name given node host.
@@ -214,17 +96,8 @@ def get_node_status(node_config):
         # Get HAProxy stats first
         haproxy_states = get_haproxy_server_states()
         
-        conn = mysql.connector.connect(
-            host=node_config['host'],
-            user=node_config['user'],
-            password=node_config['password'],
-            port=node_config['port']
-        )
-        cursor = conn.cursor(dictionary=True)
-        
         # Get all global status variables
-        cursor.execute("SHOW GLOBAL STATUS")
-        global_status = {row['Variable_name']: row['Value'] for row in cursor.fetchall()}
+        global_status, provider_options = _read_node_status(node_config)
         
         # Get Galera specific status
         galera_vars = [
@@ -272,8 +145,6 @@ def get_node_status(node_config):
         status['haproxy_status'] = hap_state.get('status', '-')
         
         # Get wsrep_provider_options
-        cursor.execute("SHOW VARIABLES LIKE 'wsrep_provider_options'")
-        provider_options = cursor.fetchone()
         if provider_options and 'Value' in provider_options:
             options = parse_wsrep_provider_options(provider_options['Value'])
             status['gcache.page_size'] = options.get('gcache.page_size', '-')
@@ -292,26 +163,10 @@ def get_node_status(node_config):
         total_queries = int(global_status.get('Queries', 0))
         
         # Calculate rates based on previous readings
-        if node_key in previous_readings:
-            prev = previous_readings[node_key]
-            time_diff = (current_time - prev['time']).total_seconds()
-            
-            if time_diff > 0:
-                writes_diff = total_writes - prev['writes']
-                reads_diff = total_reads - prev['reads']
-                queries_diff = total_queries - prev['queries']
-                
-                status['writes_per_second'] = round(writes_diff / time_diff, 2)
-                status['reads_per_second'] = round(reads_diff / time_diff, 2)
-                status['queries_per_second'] = round(queries_diff / time_diff, 2)
-            else:
-                status['writes_per_second'] = 0
-                status['reads_per_second'] = 0
-                status['queries_per_second'] = 0
-        else:
-            status['writes_per_second'] = 0
-            status['reads_per_second'] = 0
-            status['queries_per_second'] = 0
+        wps, rps, qps = _calc_rates(previous_readings, node_key, current_time, total_writes, total_reads, total_queries)
+        status['writes_per_second'] = wps
+        status['reads_per_second'] = rps
+        status['queries_per_second'] = qps
 
         # If HAProxy marks server as MAINT/DOWN, zero out rates for UI clarity
         hap_stat_str = str(status.get('haproxy_status') or '').upper()
@@ -328,8 +183,7 @@ def get_node_status(node_config):
             'time': current_time
         }
         
-        cursor.close()
-        conn.close()
+        # DB resources were closed inside _read_node_status
         
         return {
             'host': node_config['host'],
@@ -427,113 +281,8 @@ def should_send_alert(node_key, alert_key, cooldown_seconds):
     return False
 
 def evaluate_alerts(nodes_status):
-    cfg = get_alert_config()
-    alerts_cfg = cfg['alerts']
-    telegram_cfg = cfg['telegram']
-    if not alerts_cfg.get('enabled'):
-        return
-    cooldown = int(alerts_cfg.get('cooldown_seconds', 300) or 300)
-
-    for node in nodes_status:
-        host = node.get('host')
-        status = (node.get('status') or {})
-        error = node.get('error')
-        node_key = host
-
-        # Node offline / not synced / error
-        offline_triggered = False
-        if error:
-            offline_triggered = True
-            reason = f"error: {error}"
-        else:
-            state_comment = str(status.get('wsrep_local_state_comment') or '')
-            cluster_status = str(status.get('wsrep_cluster_status') or '')
-            wsrep_ready = str(status.get('wsrep_ready') or '')
-            if state_comment.lower() != 'synced' or cluster_status.lower() != 'primary' or wsrep_ready.lower() not in ['on', 'ready', '1']:
-                offline_triggered = True
-                reason = f"state={state_comment}, cluster={cluster_status}, ready={wsrep_ready}"
-        if alerts_cfg['node'].get('offline') and offline_triggered:
-            key = 'node_offline'
-            if should_send_alert(node_key, key, cooldown):
-                msg = (
-                    f"<b>Galera Alert</b>\n"
-                    f"Node: <code>{host}</code> appears <b>OFFLINE/UNSYNCED</b>\n"
-                    f"Reason: {reason}"
-                )
-                send_telegram_message(telegram_cfg, msg)
-
-        # Flow control alerts
-        if alerts_cfg.get('flow_control', {}).get('active'):
-            fc_active = str(status.get('wsrep_flow_control_active', '')).lower() == 'true'
-            if fc_active and should_send_alert(node_key, 'flow_control_active', cooldown):
-                msg = (
-                    f"<b>Galera Alert</b>\n"
-                    f"Node: <code>{host}</code> flow control is <b>ACTIVE</b>"
-                )
-                send_telegram_message(telegram_cfg, msg)
-        paused_threshold = alerts_cfg.get('flow_control', {}).get('paused_threshold')
-        if paused_threshold is not None:
-            try:
-                paused = float(status.get('wsrep_flow_control_paused', 0) or 0)
-                if paused >= float(paused_threshold):
-                    if should_send_alert(node_key, 'flow_control_paused', cooldown):
-                        msg = (
-                            f"<b>Galera Alert</b>\n"
-                            f"Node: <code>{host}</code> flow_control_paused={paused} ≥ threshold={paused_threshold}"
-                        )
-                        send_telegram_message(telegram_cfg, msg)
-            except Exception:
-                pass
-
-        # QPS/WPS thresholds
-        qps_cfg = alerts_cfg.get('qps', {})
-        wps_cfg = alerts_cfg.get('wps', {})
-        try:
-            qps = float(status.get('queries_per_second', 0) or 0)
-            if qps_cfg.get('min') is not None and qps < float(qps_cfg['min']):
-                if should_send_alert(node_key, 'qps_low', cooldown):
-                    send_telegram_message(
-                        telegram_cfg,
-                        f"<b>Galera Alert</b>\nNode: <code>{host}</code> QPS low: {qps} < {qps_cfg['min']}"
-                    )
-            if qps_cfg.get('max') is not None and qps > float(qps_cfg['max']):
-                if should_send_alert(node_key, 'qps_high', cooldown):
-                    send_telegram_message(
-                        telegram_cfg,
-                        f"<b>Galera Alert</b>\nNode: <code>{host}</code> QPS high: {qps} > {qps_cfg['max']}"
-                    )
-        except Exception:
-            pass
-        try:
-            wps = float(status.get('writes_per_second', 0) or 0)
-            if wps_cfg.get('min') is not None and wps < float(wps_cfg['min']):
-                if should_send_alert(node_key, 'wps_low', cooldown):
-                    send_telegram_message(
-                        telegram_cfg,
-                        f"<b>Galera Alert</b>\nNode: <code>{host}</code> WPS low: {wps} < {wps_cfg['min']}"
-                    )
-            if wps_cfg.get('max') is not None and wps > float(wps_cfg['max']):
-                if should_send_alert(node_key, 'wps_high', cooldown):
-                    send_telegram_message(
-                        telegram_cfg,
-                        f"<b>Galera Alert</b>\nNode: <code>{host}</code> WPS high: {wps} > {wps_cfg['max']}"
-                    )
-        except Exception:
-            pass
-
-        # HAProxy connections
-        hap_crit = alerts_cfg.get('haproxy', {}).get('connections_critical')
-        if hap_crit is not None:
-            try:
-                cur = int(status.get('haproxy_current', 0) or 0)
-                if cur >= int(hap_crit):
-                    if should_send_alert(node_key, 'haproxy_conn_critical', cooldown):
-                        send_telegram_message(
-                            telegram_cfg,
-                            f"<b>Galera Alert</b>\nNode: <code>{host}</code> HAProxy current connections {cur} ≥ {hap_crit}"
-                        )
-            except Exception:
-                pass
+    # delegate to src.alerts without changing behavior
+    _evaluate_alerts(load_config, alert_state, nodes_status)
 
 @app.route('/')
 def index():
