@@ -498,11 +498,10 @@
         }
 
         function hapEnable(host) {
-          const server = serverNameFromHost(host);
           fetch('/api/haproxy/server/enable', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ server })
+            body: JSON.stringify({ host })
           })
             .then(r => r.json())
             .then(res => {
@@ -513,11 +512,10 @@
         }
 
         function hapDisable(host) {
-          const server = serverNameFromHost(host);
           fetch('/api/haproxy/server/disable', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ server })
+            body: JSON.stringify({ host })
           })
             .then(r => r.json())
             .then(res => {

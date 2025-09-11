@@ -123,23 +123,45 @@ def haproxy_admin_server_action(backend_name, server_name, action):
     if action not in ['enable', 'disable']:
         return False, 'Unsupported action'
     try:
-        # HAProxy expects POST form with b=<backend>&s=<server>&action=<enable|disable>+server
-        action_value = f"{action} server"
+        # First try the common form: action=enable|disable
         resp = requests.post(
             url,
-            data={
-                'b': backend_name,
-                's': server_name,
-                'action': action_value
-            },
+            data={'b': backend_name, 's': server_name, 'action': action},
             auth=auth,
             timeout=5
         )
         if resp.status_code in [200, 303, 302]:
             return True, 'OK'
-        return False, f"HTTP {resp.status_code}"
+        # Fallback older form: action="enable server"|"disable server"
+        resp2 = requests.post(
+            url,
+            data={'b': backend_name, 's': server_name, 'action': f'{action} server'},
+            auth=auth,
+            timeout=5
+        )
+        if resp2.status_code in [200, 303, 302]:
+            return True, 'OK'
+        return False, f"HTTP {resp.status_code}/{resp2.status_code}"
     except Exception as e:
         return False, str(e)
+
+def get_haproxy_server_name_for_host(host: str) -> str:
+    """Resolve HAProxy server name given node host.
+    - If node has 'haproxy_server' in config, use it.
+    - Else default to node{i+1} by order in nodes list.
+    If no match, return the original host.
+    """
+    try:
+        cfg = load_config()
+        nodes = cfg.get('nodes') or []
+        for idx, node in enumerate(nodes):
+            if str(node.get('host')) == str(host):
+                if node.get('haproxy_server'):
+                    return str(node['haproxy_server'])
+                return f"node{idx+1}"
+    except Exception:
+        pass
+    return host
 
 def get_node_status(node_config):
     try:
@@ -486,9 +508,12 @@ def api_haproxy_server_action(action):
     try:
         body = request.get_json(silent=True) or {}
         backend = body.get('backend') or load_config().get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
-        server = body.get('server')  # e.g., node1, node2
+        server = body.get('server')
+        host = body.get('host')
         if not server:
-            return jsonify({'ok': False, 'error': 'server is required'}), 400
+            if not host:
+                return jsonify({'ok': False, 'error': 'server or host is required'}), 400
+            server = get_haproxy_server_name_for_host(host)
         ok, msg = haproxy_admin_server_action(backend, server, action)
         return jsonify({'ok': ok, 'message': msg}), (200 if ok else 500)
     except Exception as e:
