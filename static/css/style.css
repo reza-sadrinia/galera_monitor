@@ -127,3 +127,251 @@ h5 { font-size: 14px; margin: 0 0 6px 0; }
 .btn-sm { padding: 2px 8px; font-size: 0.85em; }
 .metric-value-wrap { white-space: normal !important; word-break: break-all; max-width: 100%; display: inline-block; }
 
+/* Server Logs Styles */
+.logs-container {
+  background-color: #2d2d2d;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 10px;
+}
+
+.logs-controls {
+  margin-bottom: 10px;
+}
+
+.logs-viewer {
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 10px;
+  height: 500px;
+  overflow-y: auto;
+}
+
+.logs-content {
+  font-family: 'Consolas', monospace;
+  font-size: 13px;
+  color: #00ff00;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-error {
+  color: #ff5555;
+}
+
+.log-warning {
+  color: #ffff55;
+}
+
+.log-info {
+  color: #55aaff;
+}
+
+/* Slow Queries Styles */
+.slow-queries-container {
+  background-color: #2d2d2d;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 10px;
+}
+
+.slow-queries-controls {
+  margin-bottom: 10px;
+}
+
+.slow-queries-table-container {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.table {
+  font-size: 13px;
+}
+
+.table-dark {
+  background-color: #1a1a1a;
+  color: #ddd;
+}
+
+.table-dark thead th {
+  background-color: #000;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.table-dark tbody tr:hover {
+  background-color: #444;
+}
+
+.query-cell {
+  max-width: 500px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.query-cell:hover {
+  white-space: normal;
+  word-break: break-all;
+}
+
+.slow-query-time {
+  color: #ff5555;
+  font-weight: bold;
+}
+
+.slow-query-time.warning {
+  color: #ffff55;
+}
+
+.slow-query-time.normal {
+  color: #55ff55;
+}
+
+/* Configuration Styles */
+.config-container {
+  background-color: #2d2d2d;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 10px;
+}
+
+.config-controls {
+  margin-bottom: 10px;
+}
+
+.config-table-container {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.config-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.config-variable {
+  font-weight: bold;
+}
+
+.config-value {
+  font-family: monospace;
+  max-width: 500px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.config-value:hover {
+  white-space: normal;
+  word-break: break-all;
+}
+
+.config-category {
+  font-size: 0.8em;
+  padding: 2px 5px;
+  border-radius: 3px;
+  margin-left: 5px;
+  background-color: #444;
+  color: #ddd;
+}
+
+.config-category.galera {
+  background-color: #007bff;
+}
+
+.config-category.performance {
+  background-color: #28a745;
+}
+
+.config-category.logging {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.config-category.replication {
+  background-color: #6f42c1;
+}
+
+.config-category.innodb {
+  background-color: #fd7e14;
+}
+
+.editable-value {
+  cursor: pointer;
+  border-bottom: 1px dashed #888;
+}
+
+.editable-value:hover {
+  background-color: #444;
+}
+
+/* Transactions Styles */
+.transactions-container {
+  padding: 20px;
+  background-color: #2c3034;
+  border-radius: 5px;
+  color: #fff;
+}
+
+.transactions-controls {
+  margin-bottom: 15px;
+  background-color: #212529;
+  padding: 15px;
+  border-radius: 5px;
+}
+
+.transactions-status {
+  margin-bottom: 15px;
+}
+
+.transactions-table-container {
+  background-color: #212529;
+  padding: 15px;
+  border-radius: 5px;
+  overflow-x: auto;
+}
+
+.transactions-table-container .nav-tabs .nav-link {
+  color: #adb5bd;
+}
+
+.transactions-table-container .nav-tabs .nav-link.active {
+  color: #fff;
+  background-color: #343a40;
+  border-color: #495057;
+}
+
+.transactions-table-container .table {
+  margin-bottom: 0;
+}
+
+.transaction-state-active {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.transaction-state-waiting {
+  color: #ffc107;
+  font-weight: bold;
+}
+
+.transaction-time-short {
+  color: #28a745;
+}
+
+.transaction-time-medium {
+  color: #ffc107;
+}
+
+.transaction-time-long {
+  color: #dc3545;
+}
+

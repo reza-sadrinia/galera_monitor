@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import json
 import re
 import time
+import os
 import requests
 from requests.auth import HTTPBasicAuth
 from src.state import previous_readings, alert_state
@@ -17,6 +18,10 @@ from src.haproxy import (
 )
 from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates
 from src.alerts import evaluate_alerts as _evaluate_alerts
+from src.logs import api_available_logs, api_server_logs
+from src.slow_queries import api_slow_queries, api_enable_slow_log
+from src.database import api_transactions, api_process_list, api_kill_process
+from src.config import api_get_config, api_update_config
 
 app = Flask(__name__)
 
@@ -335,6 +340,46 @@ def api_haproxy_restart():
         }), (200 if ok else 500)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/server_logs', methods=['GET'])
+def route_api_server_logs():
+    return api_server_logs()
+
+@app.route('/api/available_logs', methods=['GET'])
+def route_api_available_logs():
+    return api_available_logs()
+
+@app.route('/api/slow_queries', methods=['GET'])
+def route_api_slow_queries():
+    # Fix dependency injection
+    from src.slow_queries import get_nodes_status, load_config
+    globals()['get_nodes_status'] = get_nodes_status
+    globals()['load_config'] = load_config
+    return api_slow_queries()
+
+@app.route('/api/enable_slow_log', methods=['POST'])
+def route_api_enable_slow_log():
+    return api_enable_slow_log()
+
+@app.route('/api/get_config', methods=['GET'])
+def route_api_get_config():
+    return api_get_config()
+
+@app.route('/api/update_config', methods=['POST'])
+def route_api_update_config():
+    return api_update_config()
+
+@app.route('/api/transactions', methods=['GET'])
+def route_api_transactions():
+    return api_transactions()
+
+@app.route('/api/process_list', methods=['GET'])
+def route_api_process_list():
+    return api_process_list()
+
+@app.route('/api/kill_process', methods=['POST'])
+def route_api_kill_process():
+    return api_kill_process()
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
