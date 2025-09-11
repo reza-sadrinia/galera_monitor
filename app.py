@@ -1,4 +1,5 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
+import subprocess
 import mysql.connector
 import yaml
 from datetime import datetime, timedelta
@@ -94,6 +95,51 @@ def get_haproxy_stats():
         return current_by_server
     except Exception:
         return {}
+
+def get_haproxy_admin_url_and_auth():
+    """Derive HAProxy admin URL (HTML endpoint) and auth from config.
+    We reuse stats credentials. If stats_path ends with ';csv', we strip it for admin actions.
+    """
+    config = load_config()
+    haproxy_config = config.get('haproxy', {})
+    if not haproxy_config:
+        return None, None
+    path = str(haproxy_config.get('stats_path') or '/stats')
+    # Strip CSV suffix if present
+    path_admin = path.replace(';csv', '')
+    url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{path_admin}"
+    auth = HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password'])
+    return url, auth
+
+def haproxy_admin_server_action(backend_name, server_name, action):
+    """Perform enable/disable on a backend server via HAProxy stats admin HTTP.
+
+    action: 'enable' or 'disable'
+    Returns (ok: bool, message: str)
+    """
+    url, auth = get_haproxy_admin_url_and_auth()
+    if not url:
+        return False, 'HAProxy config not found'
+    if action not in ['enable', 'disable']:
+        return False, 'Unsupported action'
+    try:
+        # HAProxy expects POST form with b=<backend>&s=<server>&action=<enable|disable>+server
+        action_value = f"{action} server"
+        resp = requests.post(
+            url,
+            data={
+                'b': backend_name,
+                's': server_name,
+                'action': action_value
+            },
+            auth=auth,
+            timeout=5
+        )
+        if resp.status_code in [200, 303, 302]:
+            return True, 'OK'
+        return False, f"HTTP {resp.status_code}"
+    except Exception as e:
+        return False, str(e)
 
 def get_node_status(node_config):
     try:
@@ -266,6 +312,15 @@ def get_alert_config():
         'telegram': telegram_cfg
     }
 
+def get_restart_command():
+    cfg = load_config()
+    # Allow override via config.yaml → haproxy.restart_command
+    cmd = (cfg.get('haproxy', {}) or {}).get('restart_command')
+    if cmd:
+        return cmd
+    # sensible default for most Linux distros
+    return 'systemctl restart haproxy'
+
 def telegram_enabled(telegram_cfg):
     return bool(telegram_cfg.get('enabled')) and bool(telegram_cfg.get('bot_token')) and bool(telegram_cfg.get('chat_id'))
 
@@ -425,6 +480,35 @@ def get_cluster_status():
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
+
+@app.route('/api/haproxy/server/<action>', methods=['POST'])
+def api_haproxy_server_action(action):
+    try:
+        body = request.get_json(silent=True) or {}
+        backend = body.get('backend') or load_config().get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
+        server = body.get('server')  # e.g., node1, node2
+        if not server:
+            return jsonify({'ok': False, 'error': 'server is required'}), 400
+        ok, msg = haproxy_admin_server_action(backend, server, action)
+        return jsonify({'ok': ok, 'message': msg}), (200 if ok else 500)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/haproxy/restart', methods=['POST'])
+def api_haproxy_restart():
+    try:
+        cmd = get_restart_command()
+        # Execute the restart command locally. SECURITY: In production, protect this endpoint!
+        completed = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+        ok = completed.returncode == 0
+        return jsonify({
+            'ok': ok,
+            'returncode': completed.returncode,
+            'stdout': completed.stdout,
+            'stderr': completed.stderr
+        }), (200 if ok else 500)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
