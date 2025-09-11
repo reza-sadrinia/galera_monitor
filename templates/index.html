@@ -507,19 +507,26 @@
           const host = node.host;
           const arr = delayHistoryByHost[host] || [];
           const x = arr.map(p => new Date(p.t));
-          const y = arr.map(p => p.v);
+          const y = arr.map(p => Math.max(0, Math.round(p.v || 0))); // integer waiting tx
           const elId = `chart-delay-${safeId(host)}`;
           const el = document.getElementById(elId);
           if (!el) return;
 
           Plotly.react(el, [
-            { x, y, mode: 'lines', line: { color: '#00ff00', width: 2 }, name: 'recv_queue' }
+            {
+              x,
+              y,
+              mode: 'lines',
+              line: { color: '#00ff00', width: 2 },
+              name: 'recv_queue',
+              hovertemplate: '%{y} tx<extra></extra>'
+            }
           ], {
             margin: { l: 40, r: 10, t: 10, b: 24 },
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
             xaxis: { color: '#aaa', gridcolor: '#333', showgrid: true, tickfont: { color: '#aaa', size: 10 }, showspikes: true, spikemode: 'across' },
-            yaxis: { color: '#aaa', gridcolor: '#333', zerolinecolor: '#444', tickfont: { color: '#aaa', size: 10 }, rangemode: 'tozero' },
+            yaxis: { color: '#aaa', gridcolor: '#333', zerolinecolor: '#444', tickfont: { color: '#aaa', size: 10 }, rangemode: 'tozero', tickformat: ',d', ticksuffix: ' tx' },
             showlegend: false
           }, { displayModeBar: false, responsive: true });
         });
