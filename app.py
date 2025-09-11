@@ -96,6 +96,49 @@ def get_haproxy_stats():
     except Exception:
         return {}
 
+def get_haproxy_server_states():
+    """Return mapping host_ip -> {'current': int, 'status': str}
+    Parses HAProxy CSV for given backend.
+    """
+    config = load_config()
+    haproxy_config = config.get('haproxy', {})
+    if not haproxy_config:
+        return {}
+    try:
+        url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{haproxy_config['stats_path']}"
+        response = requests.get(
+            url,
+            auth=HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password']),
+            timeout=5
+        )
+        if response.status_code != 200:
+            return {}
+        lines = response.text.strip().split('\n')
+        headers = lines[0].split(',')
+        result = {}
+        nodes = config.get('nodes', [])
+        server_mapping = {f"node{i+1}": node['host'] for i, node in enumerate(nodes)}
+        backend_name = haproxy_config.get('backend_name', 'galera_cluster_backend')
+        for line in lines[1:]:
+            fields = line.split(',')
+            if len(fields) >= len(headers):
+                data = dict(zip(headers, fields))
+                if data['# pxname'] == backend_name and data['svname'] not in ['FRONTEND', 'BACKEND']:
+                    server_name = data['svname']
+                    if server_name in server_mapping:
+                        server_ip = server_mapping[server_name]
+                        try:
+                            cur = int(data.get('scur', 0))
+                        except ValueError:
+                            cur = 0
+                        result[server_ip] = {
+                            'current': cur,
+                            'status': data.get('status', '')
+                        }
+        return result
+    except Exception:
+        return {}
+
 def get_haproxy_admin_url_and_auth():
     """Derive HAProxy admin URL (HTML endpoint) and auth from config.
     We reuse stats credentials. If stats_path ends with ';csv', we strip it for admin actions.
@@ -169,7 +212,7 @@ def get_node_status(node_config):
         node_key = node_config['host']
         
         # Get HAProxy stats first
-        haproxy_stats = get_haproxy_stats()
+        haproxy_states = get_haproxy_server_states()
         
         conn = mysql.connector.connect(
             host=node_config['host'],
@@ -223,8 +266,10 @@ def get_node_status(node_config):
         for metric in server_metrics:
             status[metric] = global_status.get(metric, '0')
             
-        # Add HAProxy current connections
-        status['haproxy_current'] = haproxy_stats.get(node_config['host'], 0)
+        # Add HAProxy current connections and state
+        hap_state = haproxy_states.get(node_config['host'], {})
+        status['haproxy_current'] = hap_state.get('current', 0)
+        status['haproxy_status'] = hap_state.get('status', '-')
         
         # Get wsrep_provider_options
         cursor.execute("SHOW VARIABLES LIKE 'wsrep_provider_options'")
@@ -264,6 +309,13 @@ def get_node_status(node_config):
                 status['reads_per_second'] = 0
                 status['queries_per_second'] = 0
         else:
+            status['writes_per_second'] = 0
+            status['reads_per_second'] = 0
+            status['queries_per_second'] = 0
+
+        # If HAProxy marks server as MAINT/DOWN, zero out rates for UI clarity
+        hap_stat_str = str(status.get('haproxy_status') or '').upper()
+        if any(x in hap_stat_str for x in ['MAINT', 'DOWN']):
             status['writes_per_second'] = 0
             status['reads_per_second'] = 0
             status['queries_per_second'] = 0
