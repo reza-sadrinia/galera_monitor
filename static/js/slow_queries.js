@@ -86,8 +86,8 @@ function fetchSlowQueries() {
         return;
       }
       
-      if (data.queries && data.queries.length > 0) {
-        renderSlowQueries(data.queries);
+      if (data.slow_queries && data.slow_queries.length > 0) {
+        renderSlowQueries(data.slow_queries);
         hideSlowQueryStatus();
       } else {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center">No slow queries found</td></tr>';
