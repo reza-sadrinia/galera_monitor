@@ -145,7 +145,7 @@ function renderSlowQueries(queries) {
     // Query with truncation
     const queryCell = document.createElement('td');
     queryCell.className = 'query-cell';
-    queryCell.textContent = query.sql;
+    queryCell.textContent = query.sql_text || '-';
     row.appendChild(queryCell);
     
     tbody.appendChild(row);
