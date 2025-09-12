@@ -20,7 +20,7 @@ from src.cluster import read_node_status as _read_node_status, calculate_rates a
 from src.alerts import evaluate_alerts as _evaluate_alerts
 
 from src.slow_queries import api_slow_queries
-from src.database import api_transactions, api_process_list, api_kill_process
+from src.transactions import handle_transactions, handle_process_list, handle_kill_process
 from src.config import api_get_config, api_update_config
 
 app = Flask(__name__)
@@ -390,15 +390,15 @@ def route_api_update_config():
 
 @app.route('/api/transactions', methods=['GET'])
 def route_api_transactions():
-    return api_transactions()
+    return handle_transactions()
 
 @app.route('/api/process_list', methods=['GET'])
 def route_api_process_list():
-    return api_process_list()
+    return handle_process_list()
 
 @app.route('/api/kill_process', methods=['POST'])
 def route_api_kill_process():
-    return api_kill_process()
+    return handle_kill_process()
 
 @app.route('/api/nodes', methods=['GET'])
 def api_nodes():

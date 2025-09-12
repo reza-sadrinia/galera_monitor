@@ -3,8 +3,18 @@ import mysql.connector
 import yaml
 
 def load_config():
-    with open('config.yaml', 'r') as file:
-        return yaml.safe_load(file)
+    try:
+        with open('config.yaml', 'r') as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        print("Error: config.yaml not found")
+        return {'nodes': []}
+    except yaml.YAMLError as e:
+        print(f"Error parsing config.yaml: {e}")
+        return {'nodes': []}
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        return {'nodes': []}
 
 def get_nodes_status():
     # This function is not used in database module, keeping as placeholder
@@ -13,20 +23,36 @@ def get_nodes_status():
 def api_transactions():
     try:
         host = request.args.get('host')
+        config = load_config()
+        
         if not host:
-            config = load_config()
             nodes = config.get('nodes', [])
             if not nodes:
                 return jsonify({'ok': False, 'error': 'No nodes available'}), 404
             host = nodes[0]['host']
         
-        # Connect to database
-        config = load_config()
+        # Find the specific node configuration
+        node_config = None
+        for node in config.get('nodes', []):
+            if node['host'] == host:
+                node_config = node
+                break
+        
+        if not node_config:
+            return jsonify({'ok': False, 'error': f'Node {host} not found in configuration'}), 404
+        
+        # Check for placeholder password
+        if node_config['password'] in ['your_password_here', 'password', '']:
+            return jsonify({'ok': False, 'error': f'Invalid password configuration for {host}. Please update config.yaml with actual credentials.'}), 500
+        
+        # Connect to database using node-specific configuration
         db_config = {
-            'host': host,
-            'user': config.get('mysql', {}).get('user', 'root'),
-            'password': config.get('mysql', {}).get('password', ''),
-            'database': 'information_schema'
+            'host': node_config['host'],
+            'user': node_config['user'],
+            'password': node_config['password'],
+            'port': node_config.get('port', 3306),
+            'database': 'information_schema',
+            'connect_timeout': 5
         }
         
         conn = mysql.connector.connect(**db_config)
@@ -119,19 +145,36 @@ def api_transactions():
 def api_process_list():
     try:
         host = request.args.get('host')
-        if not host:
-            nodes_status = get_nodes_status()
-            if not nodes_status or len(nodes_status) == 0:
-                return jsonify({'ok': False, 'error': 'No nodes available'}), 404
-            host = nodes_status[0]['host']
-        
-        # Connect to database
         config = load_config()
+        
+        if not host:
+            nodes = config.get('nodes', [])
+            if not nodes:
+                return jsonify({'ok': False, 'error': 'No nodes available'}), 404
+            host = nodes[0]['host']
+        
+        # Find the specific node configuration
+        node_config = None
+        for node in config.get('nodes', []):
+            if node['host'] == host:
+                node_config = node
+                break
+        
+        if not node_config:
+            return jsonify({'ok': False, 'error': f'Node {host} not found in configuration'}), 404
+        
+        # Check for placeholder password
+        if node_config['password'] in ['your_password_here', 'password', '']:
+            return jsonify({'ok': False, 'error': f'Invalid password configuration for {host}. Please update config.yaml with actual credentials.'}), 500
+        
+        # Connect to database using node-specific configuration
         db_config = {
-            'host': host,
-            'user': config.get('mysql', {}).get('user', 'root'),
-            'password': config.get('mysql', {}).get('password', ''),
-            'database': 'information_schema'
+            'host': node_config['host'],
+            'user': node_config['user'],
+            'password': node_config['password'],
+            'port': node_config.get('port', 3306),
+            'database': 'information_schema',
+            'connect_timeout': 5
         }
         
         conn = mysql.connector.connect(**db_config)
@@ -172,19 +215,36 @@ def api_process_list():
 
 def api_kill_process():
     try:
-        host = request.args.get('host')
-        process_id = request.args.get('process_id')
+        data = request.get_json()
+        host = data.get('host') if data else None
+        process_id = data.get('process_id') if data else None
         
         if not host or not process_id:
             return jsonify({'ok': False, 'error': 'Host and process_id parameters are required'}), 400
         
-        # Connect to database
         config = load_config()
+        
+        # Find the specific node configuration
+        node_config = None
+        for node in config.get('nodes', []):
+            if node['host'] == host:
+                node_config = node
+                break
+        
+        if not node_config:
+            return jsonify({'ok': False, 'error': f'Node {host} not found in configuration'}), 404
+        
+        # Check for placeholder password
+        if node_config['password'] in ['your_password_here', 'password', '']:
+            return jsonify({'ok': False, 'error': f'Invalid password configuration for {host}. Please update config.yaml with actual credentials.'}), 500
+        
+        # Connect to database using node-specific configuration
         db_config = {
-            'host': host,
-            'user': config.get('mysql', {}).get('user', 'root'),
-            'password': config.get('mysql', {}).get('password', ''),
-            'database': 'information_schema'
+            'host': node_config['host'],
+            'user': node_config['user'],
+            'password': node_config['password'],
+            'port': node_config.get('port', 3306),
+            'connect_timeout': 5
         }
         
         conn = mysql.connector.connect(**db_config)
