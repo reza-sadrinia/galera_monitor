@@ -48,7 +48,7 @@ def api_slow_queries():
             server_id, 
             sql_text,
             thread_id
-        FROM slow_log
+        FROM mysql.slow_log
         ORDER BY start_time DESC
         LIMIT %s
         """
@@ -128,8 +128,8 @@ def api_enable_slow_log():
             # Configure slow query log
             cursor.execute(f"SET GLOBAL slow_query_log = {'ON' if enable else 'OFF'};")
             cursor.execute(f"SET GLOBAL long_query_time = {query_time};")
-            # Set slow query log output to TABLE so we can read from slow_log table
-            cursor.execute("SET GLOBAL log_output = 'TABLE';")
+            # Set slow query log output to TABLE and FILE so we can read from slow_log table
+            cursor.execute("SET GLOBAL log_output = 'TABLE,FILE';")
             
             # Check current status
             cursor.execute("SHOW GLOBAL VARIABLES LIKE 'slow_query_log';")
