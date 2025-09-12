@@ -10,18 +10,18 @@ function initTransactionsTab() {
     populateTransactionsNodeSelect();
     
     // Add event listeners
-    $('#transactions-node-select').on('change', function() {
-        selectedTransactionsNode = $(this).val();
+    document.getElementById('transactions-node-select').addEventListener('change', function() {
+        selectedTransactionsNode = this.value;
         fetchTransactions();
     });
     
-    $('#transactions-limit').on('change', function() {
+    document.getElementById('transactions-limit').addEventListener('change', function() {
         if (selectedTransactionsNode) {
             fetchTransactions();
         }
     });
     
-    $('#refresh-transactions').on('click', function() {
+    document.getElementById('refresh-transactions').addEventListener('click', function() {
         if (selectedTransactionsNode) {
             fetchTransactions();
         } else {
@@ -30,21 +30,21 @@ function initTransactionsTab() {
     });
     
     // Add event listener for tab switch to refresh data
-    $('#transactions-tab').on('shown.bs.tab', function() {
+    document.getElementById('transactions-tab').addEventListener('shown.bs.tab', function() {
         if (selectedTransactionsNode) {
             fetchTransactions();
         }
     });
     
     // Add event listener for processes tab
-    $('#processes-tab').on('shown.bs.tab', function() {
+    document.getElementById('processes-tab').addEventListener('shown.bs.tab', function() {
         if (selectedTransactionsNode) {
             fetchProcesses();
         }
     });
     
     // Add event listener for refresh processes button
-    $('#refresh-processes').on('click', function() {
+    document.getElementById('refresh-processes').addEventListener('click', function() {
         if (selectedTransactionsNode) {
             fetchProcesses();
         } else {
@@ -105,33 +105,31 @@ function populateTransactionsNodeSelect() {
 function fetchTransactions() {
     if (!selectedTransactionsNode) return;
     
-    const limit = $('#transactions-limit').val() || '50';
+    const limit = document.getElementById('transactions-limit').value || '50';
     
     // Show loading status
-    $('#transactions-tbody').html('<tr><td colspan="5" class="text-center">Loading transactions...</td></tr>');
-    $('#locks-tbody').html('<tr><td colspan="5" class="text-center">Loading locks...</td></tr>');
+    document.getElementById('transactions-tbody').innerHTML = '<tr><td colspan="5" class="text-center">Loading transactions...</td></tr>';
+    document.getElementById('locks-tbody').innerHTML = '<tr><td colspan="5" class="text-center">Loading locks...</td></tr>';
     
-    $.ajax({
-        url: `/api/transactions?host=${encodeURIComponent(selectedTransactionsNode)}&limit=${limit}`,
-        method: 'GET',
-        success: function(response) {
-            if (response.ok) {
-                transactionsData = response;
-                renderTransactions(response.transactions);
-                renderLocks(response.locks);
+    fetch(`/api/transactions?host=${encodeURIComponent(selectedTransactionsNode)}&limit=${limit}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                transactionsData = data;
+                renderTransactions(data.transactions);
+                renderLocks(data.locks);
                 hideTransactionsStatus();
             } else {
-                showTransactionsStatus('Failed to load transactions: ' + (response.error || 'Unknown error'), 'danger');
-                $('#transactions-tbody').html('<tr><td colspan="5" class="text-center">Failed to load transactions</td></tr>');
-                $('#locks-tbody').html('<tr><td colspan="5" class="text-center">Failed to load locks</td></tr>');
+                showTransactionsStatus('Failed to load transactions: ' + (data.error || 'Unknown error'), 'danger');
+                document.getElementById('transactions-tbody').innerHTML = '<tr><td colspan="5" class="text-center">Failed to load transactions</td></tr>';
+                document.getElementById('locks-tbody').innerHTML = '<tr><td colspan="5" class="text-center">Failed to load locks</td></tr>';
             }
-        },
-        error: function(xhr, status, error) {
-            showTransactionsStatus('Failed to load transactions: ' + error, 'danger');
-            $('#transactions-tbody').html('<tr><td colspan="5" class="text-center">Failed to load transactions</td></tr>');
-            $('#locks-tbody').html('<tr><td colspan="5" class="text-center">Failed to load locks</td></tr>');
-        }
-    });
+        })
+        .catch(error => {
+            showTransactionsStatus('Failed to load transactions: ' + error.message, 'danger');
+            document.getElementById('transactions-tbody').innerHTML = '<tr><td colspan="5" class="text-center">Failed to load transactions</td></tr>';
+            document.getElementById('locks-tbody').innerHTML = '<tr><td colspan="5" class="text-center">Failed to load locks</td></tr>';
+        });
 }
 
 // Fetch processes data
@@ -139,34 +137,32 @@ function fetchProcesses() {
     if (!selectedTransactionsNode) return;
     
     // Show loading status
-    $('#processes-tbody').html('<tr><td colspan="8" class="text-center">Loading processes...</td></tr>');
+    document.getElementById('processes-tbody').innerHTML = '<tr><td colspan="8" class="text-center">Loading processes...</td></tr>';
     
-    $.ajax({
-        url: `/api/process_list?host=${encodeURIComponent(selectedTransactionsNode)}`,
-        method: 'GET',
-        success: function(response) {
-            if (response.ok) {
-                renderProcesses(response.processes);
+    fetch(`/api/process_list?host=${encodeURIComponent(selectedTransactionsNode)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                renderProcesses(data.processes);
                 hideTransactionsStatus();
             } else {
-                showTransactionsStatus('Failed to load processes: ' + (response.error || 'Unknown error'), 'danger');
-                $('#processes-tbody').html('<tr><td colspan="8" class="text-center">Failed to load processes</td></tr>');
+                showTransactionsStatus('Failed to load processes: ' + (data.error || 'Unknown error'), 'danger');
+                document.getElementById('processes-tbody').innerHTML = '<tr><td colspan="8" class="text-center">Failed to load processes</td></tr>';
             }
-        },
-        error: function(xhr, status, error) {
-            showTransactionsStatus('Failed to load processes: ' + error, 'danger');
-            $('#processes-tbody').html('<tr><td colspan="8" class="text-center">Failed to load processes</td></tr>');
-        }
-    });
+        })
+        .catch(error => {
+            showTransactionsStatus('Failed to load processes: ' + error.message, 'danger');
+            document.getElementById('processes-tbody').innerHTML = '<tr><td colspan="8" class="text-center">Failed to load processes</td></tr>';
+        });
 }
 
 // Render transactions table
 function renderTransactions(transactions) {
-    const $tbody = $('#transactions-tbody');
-    $tbody.empty();
+    const tbody = document.getElementById('transactions-tbody');
+    tbody.innerHTML = '';
     
     if (!transactions || transactions.length === 0) {
-        $tbody.html('<tr><td colspan="5" class="text-center">No active transactions</td></tr>');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">No active transactions</td></tr>';
         return;
     }
     
@@ -192,17 +188,17 @@ function renderTransactions(transactions) {
             </tr>
         `;
         
-        $tbody.append(row);
+        tbody.innerHTML += row;
     });
 }
 
 // Render locks table
 function renderLocks(locks) {
-    const $tbody = $('#locks-tbody');
-    $tbody.empty();
+    const tbody = document.getElementById('locks-tbody');
+    tbody.innerHTML = '';
     
     if (!locks || locks.length === 0) {
-        $tbody.html('<tr><td colspan="5" class="text-center">No active locks</td></tr>');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">No active locks</td></tr>';
         return;
     }
     
@@ -218,17 +214,17 @@ function renderLocks(locks) {
             </tr>
         `;
         
-        $tbody.append(row);
+        tbody.innerHTML += row;
     });
 }
 
 // Render processes table
 function renderProcesses(processes) {
-    const $tbody = $('#processes-tbody');
-    $tbody.empty();
+    const tbody = document.getElementById('processes-tbody');
+    tbody.innerHTML = '';
     
     if (!processes || processes.length === 0) {
-        $tbody.html('<tr><td colspan="8" class="text-center">No active processes</td></tr>');
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No active processes</td></tr>';
         return;
     }
     
@@ -265,13 +261,15 @@ function renderProcesses(processes) {
             </tr>
         `;
         
-        $tbody.append(row);
+        tbody.innerHTML += row;
     });
     
     // Add event listeners for kill buttons
-    $('.kill-process').on('click', function() {
-        const processId = $(this).data('process-id');
-        killProcess(processId);
+    document.querySelectorAll('.kill-process').forEach(button => {
+        button.addEventListener('click', function() {
+            const processId = this.getAttribute('data-process-id');
+            killProcess(processId);
+        });
     });
 }
 
@@ -281,41 +279,43 @@ function killProcess(processId) {
         return;
     }
     
-    $.ajax({
-        url: '/api/kill_process',
+    fetch('/api/kill_process', {
         method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
             host: selectedTransactionsNode,
             process_id: processId
-        }),
-        success: function(response) {
-            if (response.ok) {
-                showTransactionsStatus(`Process ${processId} killed successfully`, 'success');
-                // Refresh processes list
-                fetchProcesses();
-            } else {
-                showTransactionsStatus('Failed to kill process: ' + (response.error || 'Unknown error'), 'danger');
-            }
-        },
-        error: function(xhr, status, error) {
-            showTransactionsStatus('Failed to kill process: ' + error, 'danger');
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.ok) {
+            showTransactionsStatus(`Process ${processId} killed successfully`, 'success');
+            // Refresh processes list
+            fetchProcesses();
+        } else {
+            showTransactionsStatus('Failed to kill process: ' + (data.error || 'Unknown error'), 'danger');
         }
+    })
+    .catch(error => {
+        showTransactionsStatus('Failed to kill process: ' + error.message, 'danger');
     });
 }
 
 // Show status message
 function showTransactionsStatus(message, type) {
-    const $status = $('.transactions-status');
-    $status.removeClass('d-none alert-info alert-success alert-warning alert-danger');
-    $status.addClass(`alert-${type}`);
-    $('#transactions-status-text').text(message);
-    $status.show();
+    const status = document.querySelector('.transactions-status');
+    status.classList.remove('d-none', 'alert-info', 'alert-success', 'alert-warning', 'alert-danger');
+    status.classList.add(`alert-${type}`);
+    document.getElementById('transactions-status-text').textContent = message;
+    status.style.display = 'block';
 }
 
 // Hide status message
 function hideTransactionsStatus() {
-    $('.transactions-status').addClass('d-none');
+    document.querySelector('.transactions-status').classList.add('d-none');
 }
 
 // Format date for display
@@ -352,6 +352,6 @@ function escapeHtml(text) {
 }
 
 // Initialize when document is ready
-$(document).ready(function() {
+document.addEventListener('DOMContentLoaded', function() {
     initTransactionsTab();
 });
