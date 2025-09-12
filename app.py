@@ -311,10 +311,8 @@ def get_cluster_status():
             print("Error: No nodes found in config")
             return jsonify({'error': 'No nodes configured'}), 500
         
-        print(f"Processing {len(config['nodes'])} nodes...")
         nodes_status = []
         for node in config['nodes']:
-            print(f"Getting status for node: {node.get('host', 'unknown')}")
             status = get_node_status(node)
             nodes_status.append(status)
             if status.get('error'):
