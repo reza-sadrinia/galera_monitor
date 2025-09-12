@@ -53,7 +53,7 @@ def api_get_config():
                 'key_buffer_size', 'max_allowed_packet',
                 
                 # Slow query log
-                'slow_query_log', 'long_query_time', 'slow_query_log_file',
+                'slow_query_log', 'long_query_time', 'slow_query_log_file', 'log_output',
                 
                 # Replication
                 'server_id', 'log_bin', 'binlog_format',
