@@ -381,5 +381,30 @@ def route_api_process_list():
 def route_api_kill_process():
     return api_kill_process()
 
+@app.route('/api/nodes', methods=['GET'])
+def api_nodes():
+    try:
+        config = load_config()
+        nodes = config.get('nodes', [])
+        
+        # Format nodes data for frontend
+        formatted_nodes = []
+        for i, node in enumerate(nodes):
+            formatted_nodes.append({
+                'host': node.get('host'),
+                'name': node.get('name', f'Node {i+1}'),
+                'port': node.get('port', 3306)
+            })
+        
+        return jsonify({
+            'ok': True,
+            'nodes': formatted_nodes
+        })
+    except Exception as e:
+        return jsonify({
+            'ok': False,
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

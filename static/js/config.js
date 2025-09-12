@@ -96,17 +96,36 @@ function populateConfigNodeSelect() {
   const nodeSelect = document.getElementById('config-node-select');
   nodeSelect.innerHTML = '';
   
-  // Add option for each node
-  for (const node of window.nodesData) {
-    const option = document.createElement('option');
-    option.value = node.host;
-    option.textContent = `${node.host} (${node.name})`;
-    nodeSelect.appendChild(option);
-  }
-  
-  // Set current node if not set
-  if (nodeSelect.options.length > 0 && !currentNodeForConfig) {
-    currentNodeForConfig = nodeSelect.options[0].value;
+  // Check if nodes data is available
+  if (window.nodesData && window.nodesData.length > 0) {
+    // Add option for each node
+    for (const node of window.nodesData) {
+      const option = document.createElement('option');
+      option.value = node.host;
+      option.textContent = `${node.host} (${node.name})`;
+      nodeSelect.appendChild(option);
+    }
+    
+    // Set current node if not set
+    if (nodeSelect.options.length > 0 && !currentNodeForConfig) {
+      currentNodeForConfig = nodeSelect.options[0].value;
+    }
+  } else {
+    // Fallback: Load nodes from API
+    fetch('/api/nodes')
+      .then(response => response.json())
+      .then(data => {
+        if (data.ok && data.nodes) {
+          window.nodesData = data.nodes;
+          // Recursively call to populate with loaded data
+          populateConfigNodeSelect();
+        } else {
+          console.error('Failed to load nodes:', data.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error loading nodes:', error);
+      });
   }
 }
 

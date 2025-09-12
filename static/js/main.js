@@ -104,6 +104,13 @@ function refreshStatus() {
   fetch('/api/status', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
     .then(response => response.json())
     .then(data => {
+      // Store nodes data globally for other modules
+      window.nodesData = data.map(node => ({
+        host: node.host,
+        name: node.host, // Use host as name if name is not available
+        status: node.status
+      }));
+      
       renderOverview(data);
       updateDelayHistories(data);
       renderDelayCharts(data);
