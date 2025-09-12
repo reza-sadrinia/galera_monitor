@@ -163,9 +163,7 @@
                   <option value="100">100 transactions</option>
                 </select>
               </div>
-              <div class="col-md-4 d-flex align-items-end">
-                <button id="refresh-transactions" class="btn btn-sm btn-primary mb-2">Refresh Transactions</button>
-              </div>
+
             </div>
           </div>
           <div class="transactions-status alert alert-info d-none">
@@ -185,6 +183,12 @@
             </ul>
             <div class="tab-content" id="transactionsTabsContent">
               <div class="tab-pane fade show active" id="transactions-list" role="tabpanel" aria-labelledby="transactions-list-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h5 class="mb-0">Active Transactions</h5>
+                  <button class="btn btn-outline-light btn-sm" id="refresh-transactions">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                  </button>
+                </div>
                 <table class="table table-dark table-striped table-hover mt-3">
                   <thead>
                     <tr>
@@ -203,6 +207,12 @@
                 </table>
               </div>
               <div class="tab-pane fade" id="locks" role="tabpanel" aria-labelledby="locks-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h5 class="mb-0">Active Locks</h5>
+                  <button class="btn btn-outline-light btn-sm" id="refresh-locks">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                  </button>
+                </div>
                 <table class="table table-dark table-striped table-hover mt-3">
                   <thead>
                     <tr>

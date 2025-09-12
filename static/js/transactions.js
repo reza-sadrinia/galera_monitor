@@ -37,6 +37,14 @@ function initTransactionsTab() {
         }
     });
     
+    document.getElementById('refresh-locks').addEventListener('click', function() {
+        if (selectedTransactionsNode) {
+            fetchTransactions(); // locks data comes from fetchTransactions
+        } else {
+            showTransactionsStatus('Please select a node first', 'warning');
+        }
+    });
+    
     // Add event listener for tab switch to refresh data
     document.getElementById('transactions-tab').addEventListener('shown.bs.tab', function() {
         if (selectedTransactionsNode) {
@@ -48,6 +56,13 @@ function initTransactionsTab() {
     document.getElementById('processes-tab').addEventListener('shown.bs.tab', function() {
         if (selectedTransactionsNode) {
             fetchProcesses();
+        }
+    });
+    
+    // Add event listener for locks tab
+    document.getElementById('locks-tab').addEventListener('shown.bs.tab', function() {
+        if (selectedTransactionsNode) {
+            fetchTransactions(); // locks data comes from fetchTransactions
         }
     });
     
