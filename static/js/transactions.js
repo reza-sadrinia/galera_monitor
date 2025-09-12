@@ -29,6 +29,14 @@ function initTransactionsTab() {
         }
     });
     
+    document.getElementById('refresh-processes').addEventListener('click', function() {
+        if (selectedTransactionsNode) {
+            fetchProcesses();
+        } else {
+            showTransactionsStatus('Please select a node first', 'warning');
+        }
+    });
+    
     // Add event listener for tab switch to refresh data
     document.getElementById('transactions-tab').addEventListener('shown.bs.tab', function() {
         if (selectedTransactionsNode) {
@@ -43,7 +51,7 @@ function initTransactionsTab() {
         }
     });
     
-    // Note: refresh-processes button not present in HTML
+    // refresh-processes button event listener added above
 }
 
 // Populate node selection dropdown
@@ -222,31 +230,31 @@ function renderProcesses(processes) {
     processes.forEach(process => {
         // Determine time class
         let timeClass = 'transaction-time-short';
-        if (process.TIME > 60) {
+        if (process.time > 60) {
             timeClass = 'transaction-time-medium';
         }
-        if (process.TIME > 300) {
+        if (process.time > 300) {
             timeClass = 'transaction-time-long';
         }
         
         // Format query for display
-        const info = process.INFO || 'No query';
+        const info = process.info || 'No query';
         const shortInfo = info.length > 100 ? info.substring(0, 100) + '...' : info;
         
         // Create row with kill button for non-system processes
-        const killButton = process.COMMAND !== 'Daemon' ? 
-            `<button class="btn btn-sm btn-danger kill-process" data-process-id="${process.ID}">Kill</button>` : 
+        const killButton = process.command !== 'Daemon' ? 
+            `<button class="btn btn-sm btn-danger kill-process" data-process-id="${process.id}">Kill</button>` : 
             '';
         
         const row = `
             <tr>
-                <td>${process.ID}</td>
-                <td>${process.USER}</td>
-                <td>${process.HOST}</td>
-                <td>${process.DB || '-'}</td>
-                <td>${process.COMMAND}</td>
-                <td class="${timeClass}">${formatTime(process.TIME)}</td>
-                <td>${process.STATE || '-'}</td>
+                <td>${process.id}</td>
+                <td>${process.user}</td>
+                <td>${process.host}</td>
+                <td>${process.db || '-'}</td>
+                <td>${process.command}</td>
+                <td class="${timeClass}">${formatTime(process.time)}</td>
+                <td>${process.state || '-'}</td>
                 <td title="${escapeHtml(info)}">${escapeHtml(shortInfo)}</td>
                 <td>${killButton}</td>
             </tr>

@@ -221,6 +221,12 @@
                 </table>
               </div>
               <div class="tab-pane fade" id="processes" role="tabpanel" aria-labelledby="processes-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h5 class="mb-0">Active Processes</h5>
+                  <button class="btn btn-outline-light btn-sm" id="refresh-processes">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                  </button>
+                </div>
                 <table class="table table-dark table-striped table-hover mt-3">
                   <thead>
                     <tr>
@@ -232,6 +238,7 @@
                       <th>Time</th>
                       <th>State</th>
                       <th>Info</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody id="processes-tbody">
