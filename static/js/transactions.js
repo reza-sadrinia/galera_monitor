@@ -43,14 +43,7 @@ function initTransactionsTab() {
         }
     });
     
-    // Add event listener for refresh processes button
-    document.getElementById('refresh-processes').addEventListener('click', function() {
-        if (selectedTransactionsNode) {
-            fetchProcesses();
-        } else {
-            showTransactionsStatus('Please select a node first', 'warning');
-        }
-    });
+    // Note: refresh-processes button not present in HTML
 }
 
 // Populate node selection dropdown
@@ -60,24 +53,22 @@ function populateTransactionsNodeSelect() {
     
     // Check if nodes data is available
     if (window.nodesData && window.nodesData.length > 0) {
-        // Add default option
-        const defaultOption = document.createElement('option');
-        defaultOption.value = '';
-        defaultOption.textContent = 'Select Node';
-        defaultOption.selected = true;
-        defaultOption.disabled = true;
-        nodeSelect.appendChild(defaultOption);
+        // No default option - directly show nodes
         
         // Add option for each node
-        for (const node of window.nodesData) {
+        for (let i = 0; i < window.nodesData.length; i++) {
+            const node = window.nodesData[i];
             const option = document.createElement('option');
             option.value = node.host;
             option.textContent = `${node.name} (${node.host})`;
+            if (i === 0) {
+                option.selected = true;
+            }
             nodeSelect.appendChild(option);
         }
         
-        // If there's only one node, select it automatically
-        if (window.nodesData.length === 1) {
+        // Automatically select the first node
+        if (window.nodesData.length > 0) {
             nodeSelect.value = window.nodesData[0].host;
             selectedTransactionsNode = window.nodesData[0].host;
             fetchTransactions();
