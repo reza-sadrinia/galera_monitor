@@ -34,9 +34,7 @@
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="charts-tab" data-bs-toggle="tab" data-bs-target="#charts-pane" type="button" role="tab" aria-controls="charts-pane" aria-selected="false">Charts</button>
       </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-pane" type="button" role="tab" aria-controls="logs-pane" aria-selected="false">Server Logs</button>
-      </li>
+
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="slow-queries-tab" data-bs-toggle="tab" data-bs-target="#slow-queries-pane" type="button" role="tab" aria-controls="slow-queries-pane" aria-selected="false">Slow Queries</button>
       </li>
@@ -55,33 +53,7 @@
       <div class="tab-pane fade" id="charts-pane" role="tabpanel" aria-labelledby="charts-tab">
         <div id="charts-container" class="node-grid"></div>
       </div>
-      <div class="tab-pane fade" id="logs-pane" role="tabpanel" aria-labelledby="logs-tab">
-        <div class="logs-container">
-          <div class="logs-controls">
-            <div class="row mb-3">
-              <div class="col-md-6">
-                <label class="form-label">Log File:</label>
-                <div class="form-control form-control-sm bg-dark text-light">/var/log/mariadb/galera-error.log</div>
-              </div>
-              <div class="col-md-3">
-                <label for="log-lines" class="form-label">Lines to show:</label>
-                <select id="log-lines" class="form-select form-select-sm">
-                  <option value="50">50 lines</option>
-                  <option value="100" selected>100 lines</option>
-                  <option value="200">200 lines</option>
-                  <option value="500">500 lines</option>
-                </select>
-              </div>
-              <div class="col-md-3 d-flex align-items-end">
-                <button id="refresh-logs" class="btn btn-sm btn-primary mb-2">Refresh Logs</button>
-              </div>
-            </div>
-          </div>
-          <div class="logs-viewer">
-            <pre id="logs-content" class="logs-content">Loading logs...</pre>
-          </div>
-        </div>
-      </div>
+
       <div class="tab-pane fade" id="slow-queries-pane" role="tabpanel" aria-labelledby="slow-queries-tab">
         <div class="slow-queries-container">
           <div class="slow-queries-controls">
@@ -276,7 +248,7 @@
   </div>
 
   <script src="/static/js/charts.js"></script>
-    <script src="/static/js/logs.js"></script>
+    
     <script src="/static/js/slow_queries.js"></script>
     <script src="/static/js/config.js"></script>
     <script src="/static/js/transactions.js"></script>

@@ -18,7 +18,7 @@ from src.haproxy import (
 )
 from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates
 from src.alerts import evaluate_alerts as _evaluate_alerts
-from src.logs import api_available_logs, api_server_logs
+
 from src.slow_queries import api_slow_queries
 from src.database import api_transactions, api_process_list, api_kill_process
 from src.config import api_get_config, api_update_config
@@ -341,13 +341,7 @@ def api_haproxy_restart():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
-@app.route('/api/server_logs', methods=['GET'])
-def route_api_server_logs():
-    return api_server_logs()
 
-@app.route('/api/available_logs', methods=['GET'])
-def route_api_available_logs():
-    return api_available_logs()
 
 @app.route('/api/slow_queries', methods=['GET'])
 def route_api_slow_queries():
