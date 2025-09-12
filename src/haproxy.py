@@ -49,11 +49,21 @@ def get_haproxy_server_states(load_config):
     config = load_config()
     haproxy_config = config.get('haproxy', {})
     if not haproxy_config:
+        print("Warning: No HAProxy configuration found")
         return {}
+    
+    # Check for placeholder values
+    if (haproxy_config.get('host') == 'haproxy.example.com' or 
+        haproxy_config.get('stats_password') in ['your_password', 'password', ''] or
+        haproxy_config.get('stats_port') == 'port_number'):
+        print("Warning: HAProxy configuration contains placeholder values. Please update config.yaml")
+        return {}
+    
     try:
         url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{haproxy_config['stats_path']}"
         response = requests.get(url, auth=HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password']), timeout=5)
         if response.status_code != 200:
+            print(f"Warning: HAProxy stats returned status {response.status_code}")
             return {}
         lines = response.text.strip().split('\n')
         headers = lines[0].split(',')
@@ -75,7 +85,8 @@ def get_haproxy_server_states(load_config):
                             cur = 0
                         result[server_ip] = { 'current': cur, 'status': data.get('status', '') }
         return result
-    except Exception:
+    except Exception as e:
+        print(f"Warning: HAProxy connection failed: {str(e)}")
         return {}
 
 def get_haproxy_admin_url_and_auth(load_config):

@@ -15,6 +15,13 @@ nodes:
     port: 3306
     haproxy_server: "node3"
 
+mysql:
+  host: "172.19.1.190"
+  port: 3306
+  user: "root"
+  password: "your_password_here"
+  database: "information_schema"
+
 haproxy:
   host: "haproxy.example.com"
   stats_port: port_number

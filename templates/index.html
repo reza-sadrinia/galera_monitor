@@ -34,6 +34,16 @@
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="charts-tab" data-bs-toggle="tab" data-bs-target="#charts-pane" type="button" role="tab" aria-controls="charts-pane" aria-selected="false">Charts</button>
       </li>
+
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="slow-queries-tab" data-bs-toggle="tab" data-bs-target="#slow-queries-pane" type="button" role="tab" aria-controls="slow-queries-pane" aria-selected="false">Slow Queries</button>
+      </li>
+      <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config-pane" type="button" role="tab" aria-controls="config-pane" aria-selected="false">Configuration</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions-pane" type="button" role="tab" aria-controls="transactions-pane" aria-selected="false">Transactions</button>
+                </li>
     </ul>
 
     <div class="tab-content mt-3">
@@ -43,11 +53,206 @@
       <div class="tab-pane fade" id="charts-pane" role="tabpanel" aria-labelledby="charts-tab">
         <div id="charts-container" class="node-grid"></div>
       </div>
+
+      <div class="tab-pane fade" id="slow-queries-pane" role="tabpanel" aria-labelledby="slow-queries-tab">
+        <div class="slow-queries-container">
+          <div class="slow-queries-controls">
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="slow-query-node-select" class="form-label">Node:</label>
+                <select id="slow-query-node-select" class="form-select form-select-sm"></select>
+              </div>
+              <div class="col-md-2">
+                <label for="slow-query-limit" class="form-label">Limit:</label>
+                <select id="slow-query-limit" class="form-select form-select-sm">
+                  <option value="50">50 queries</option>
+                  <option value="100" selected>100 queries</option>
+                  <option value="200">200 queries</option>
+                  <option value="500">500 queries</option>
+                </select>
+              </div>
+              <div class="col-md-3 d-flex align-items-end">
+                <button id="refresh-slow-queries" class="btn btn-sm btn-primary mb-2">Refresh Queries</button>
+              </div>
+            </div>
+          </div>
+          <div class="slow-queries-status alert alert-info d-none">
+            <span id="slow-queries-status-text"></span>
+          </div>
+          <div class="slow-queries-table-container">
+            <table id="slow-queries-table" class="table table-dark table-striped table-hover">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Query Time</th>
+                  <th>Lock Time</th>
+                  <th>Rows</th>
+                  <th>Database</th>
+                  <th>Query</th>
+                </tr>
+              </thead>
+              <tbody id="slow-queries-tbody">
+                <tr>
+                  <td colspan="6" class="text-center">Loading slow queries...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="config-pane" role="tabpanel" aria-labelledby="config-tab">
+        <div class="config-container">
+          <div class="config-controls">
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="config-node-select" class="form-label">Node:</label>
+                <select id="config-node-select" class="form-select form-select-sm"></select>
+              </div>
+              <div class="col-md-4">
+                <label for="config-category" class="form-label">Category:</label>
+                <select id="config-category" class="form-select form-select-sm">
+                  <option value="all" selected>All</option>
+                  <option value="galera">Galera</option>
+                  <option value="performance">Performance</option>
+                  <option value="logging">Logging</option>
+                  <option value="replication">Replication</option>
+                  <option value="innodb">InnoDB</option>
+                </select>
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button id="refresh-config" class="btn btn-sm btn-primary mb-2">Refresh Config</button>
+              </div>
+            </div>
+          </div>
+          <div class="config-status alert alert-info d-none">
+            <span id="config-status-text"></span>
+          </div>
+          <div class="config-table-container">
+            <table id="config-table" class="table table-dark table-striped table-hover">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Value</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="config-tbody">
+                <tr>
+                  <td colspan="3" class="text-center">Loading configuration...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="transactions-pane" role="tabpanel" aria-labelledby="transactions-tab">
+        <div class="transactions-container">
+          <div class="transactions-controls">
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="transactions-node-select" class="form-label">Node:</label>
+                <select id="transactions-node-select" class="form-select form-select-sm"></select>
+              </div>
+              <div class="col-md-4">
+                <label for="transactions-limit" class="form-label">Limit:</label>
+                <select id="transactions-limit" class="form-select form-select-sm">
+                  <option value="10">10 transactions</option>
+                  <option value="25" selected>25 transactions</option>
+                  <option value="50">50 transactions</option>
+                  <option value="100">100 transactions</option>
+                </select>
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button id="refresh-transactions" class="btn btn-sm btn-primary mb-2">Refresh Transactions</button>
+              </div>
+            </div>
+          </div>
+          <div class="transactions-status alert alert-info d-none">
+            <span id="transactions-status-text"></span>
+          </div>
+          <div class="transactions-table-container">
+            <ul class="nav nav-tabs" id="transactionsTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="transactions-list-tab" data-bs-toggle="tab" data-bs-target="#transactions-list" type="button" role="tab" aria-controls="transactions-list" aria-selected="true">Transactions</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="locks-tab" data-bs-toggle="tab" data-bs-target="#locks" type="button" role="tab" aria-controls="locks" aria-selected="false">Locks</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="processes-tab" data-bs-toggle="tab" data-bs-target="#processes" type="button" role="tab" aria-controls="processes" aria-selected="false">Processes</button>
+              </li>
+            </ul>
+            <div class="tab-content" id="transactionsTabsContent">
+              <div class="tab-pane fade show active" id="transactions-list" role="tabpanel" aria-labelledby="transactions-list-tab">
+                <table class="table table-dark table-striped table-hover mt-3">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>State</th>
+                      <th>Started</th>
+                      <th>Thread ID</th>
+                      <th>Query</th>
+                    </tr>
+                  </thead>
+                  <tbody id="transactions-tbody">
+                    <tr>
+                      <td colspan="5" class="text-center">Loading transactions...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="tab-pane fade" id="locks" role="tabpanel" aria-labelledby="locks-tab">
+                <table class="table table-dark table-striped table-hover mt-3">
+                  <thead>
+                    <tr>
+                      <th>Lock ID</th>
+                      <th>Transaction ID</th>
+                      <th>Mode</th>
+                      <th>Type</th>
+                      <th>Table</th>
+                    </tr>
+                  </thead>
+                  <tbody id="locks-tbody">
+                    <tr>
+                      <td colspan="5" class="text-center">Loading locks...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="tab-pane fade" id="processes" role="tabpanel" aria-labelledby="processes-tab">
+                <table class="table table-dark table-striped table-hover mt-3">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>User</th>
+                      <th>Host</th>
+                      <th>DB</th>
+                      <th>Command</th>
+                      <th>Time</th>
+                      <th>State</th>
+                      <th>Info</th>
+                    </tr>
+                  </thead>
+                  <tbody id="processes-tbody">
+                    <tr>
+                      <td colspan="8" class="text-center">Loading processes...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <script src="/static/js/charts.js"></script>
-  <script src="/static/js/main.js"></script>
+    
+    <script src="/static/js/slow_queries.js"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/transactions.js"></script>
+    <script src="/static/js/main.js"></script>
   <script>
     // Initial load and start countdown
     refreshStatus();

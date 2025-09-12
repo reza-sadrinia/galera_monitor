@@ -6,37 +6,42 @@ from datetime import datetime, timedelta
 import json
 import re
 import time
+import os
 import requests
 from requests.auth import HTTPBasicAuth
-from src.state import previous_readings, alert_state
+from src.state import alert_state
 from src.haproxy import (
     get_haproxy_stats as _hap_stats,
     get_haproxy_server_states as _hap_states,
     get_haproxy_admin_url_and_auth as _hap_admin_url_auth,
     haproxy_admin_server_action as _hap_admin_action
 )
-from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates
+from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates, get_node_status, parse_wsrep_provider_options
 from src.alerts import evaluate_alerts as _evaluate_alerts
+
+from src.slow_queries import api_slow_queries
+from src.transactions import handle_transactions, handle_process_list, handle_kill_process
+from src.config import api_get_config, api_update_config
 
 app = Flask(__name__)
 
 # State moved to src/state (imported above)
 
 def load_config():
-    with open('config.yaml', 'r') as file:
-        return yaml.safe_load(file)
+    try:
+        with open('config.yaml', 'r') as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        print("Error: config.yaml file not found. Please copy config-example.yaml to config.yaml and configure it.")
+        return {'nodes': []}
+    except yaml.YAMLError as e:
+        print(f"Error parsing config.yaml: {e}")
+        return {'nodes': []}
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        return {'nodes': []}
 
-def parse_wsrep_provider_options(options_str):
-    if not options_str:
-        return {}
-    
-    result = {}
-    pairs = options_str.split(';')
-    for pair in pairs:
-        if '=' in pair:
-            key, value = pair.strip().split('=', 1)
-            result[key.strip()] = value.strip()
-    return result
+
 
 def calculate_rate(current_value, previous_value, current_time, previous_time):
     if previous_value is None or previous_time is None:
@@ -88,116 +93,7 @@ def get_haproxy_server_name_for_host(host: str) -> str:
         pass
     return host
 
-def get_node_status(node_config):
-    try:
-        current_time = datetime.now()
-        node_key = node_config['host']
-        
-        # Get HAProxy stats first
-        haproxy_states = get_haproxy_server_states()
-        
-        # Get all global status variables
-        global_status, provider_options = _read_node_status(node_config)
-        
-        # Get Galera specific status
-        galera_vars = [
-            'wsrep_local_state_comment',
-            'wsrep_cluster_size',
-            'wsrep_local_index',
-            'wsrep_cluster_status',
-            'wsrep_flow_control_active',
-            'wsrep_flow_control_recv',
-            'wsrep_flow_control_sent',
-            'wsrep_flow_control_paused',
-            'wsrep_local_cert_failures',
-            'wsrep_local_recv_queue',
-            'wsrep_local_send_queue',
-            'wsrep_cert_deps_distance',
-            'wsrep_last_committed',
-            'wsrep_provider_version',
-            'wsrep_thread_count',
-            'wsrep_cluster_conf_id',
-            'wsrep_cluster_size',
-            'wsrep_cluster_state_uuid',
-            'wsrep_local_state',
-            'wsrep_ready',
-            'wsrep_applier_thread_count',
-            'wsrep_rollbacker_thread_count'
-        ]
-        
-        status = {var: global_status.get(var, '-') for var in galera_vars}
-        
-        # Add additional server metrics
-        server_metrics = [
-            'Com_lock_tables',
-            'Threads_running',
-            'Memory_used',
-            'Slave_connections',
-            'Slaves_connected'
-        ]
-        
-        for metric in server_metrics:
-            status[metric] = global_status.get(metric, '0')
-            
-        # Add HAProxy current connections and state
-        hap_state = haproxy_states.get(node_config['host'], {})
-        status['haproxy_current'] = hap_state.get('current', 0)
-        status['haproxy_status'] = hap_state.get('status', '-')
-        
-        # Get wsrep_provider_options
-        if provider_options and 'Value' in provider_options:
-            options = parse_wsrep_provider_options(provider_options['Value'])
-            status['gcache.page_size'] = options.get('gcache.page_size', '-')
-            status['gcache.size'] = options.get('gcache.size', '-')
-            status['gcs.fc_limit'] = options.get('gcs.fc_limit', '-')
-        
-        # Calculate metrics based on SHOW GLOBAL STATUS
-        total_writes = (
-            int(global_status.get('Com_insert', 0)) +
-            int(global_status.get('Com_insert_select', 0)) +
-            int(global_status.get('Com_update', 0)) +
-            int(global_status.get('Com_update_multi', 0))
-        )
-        
-        total_reads = int(global_status.get('Com_select', 0))
-        total_queries = int(global_status.get('Queries', 0))
-        
-        # Calculate rates based on previous readings
-        wps, rps, qps = _calc_rates(previous_readings, node_key, current_time, total_writes, total_reads, total_queries)
-        status['writes_per_second'] = wps
-        status['reads_per_second'] = rps
-        status['queries_per_second'] = qps
 
-        # If HAProxy marks server as MAINT/DOWN, zero out rates for UI clarity
-        hap_stat_str = str(status.get('haproxy_status') or '').upper()
-        if any(x in hap_stat_str for x in ['MAINT', 'DOWN']):
-            status['writes_per_second'] = 0
-            status['reads_per_second'] = 0
-            status['queries_per_second'] = 0
-        
-        # Store current readings for next calculation
-        previous_readings[node_key] = {
-            'writes': total_writes,
-            'reads': total_reads,
-            'queries': total_queries,
-            'time': current_time
-        }
-        
-        # DB resources were closed inside _read_node_status
-        
-        return {
-            'host': node_config['host'],
-            'status': status,
-            'timestamp': current_time.isoformat(),
-            'error': None
-        }
-    except Exception as e:
-        return {
-            'host': node_config['host'],
-            'status': None,
-            'timestamp': datetime.now().isoformat(),
-            'error': str(e)
-        }
 
 def get_alert_config():
     config = load_config()
@@ -290,19 +186,35 @@ def index():
 
 @app.route('/api/status')
 def get_cluster_status():
-    config = load_config()
-    nodes_status = [get_node_status(node) for node in config['nodes']]
-    # Evaluate alerts based on current snapshot
     try:
-        evaluate_alerts(nodes_status)
-    except Exception:
-        # Never let alert evaluation break the API response
-        pass
-    response = jsonify(nodes_status)
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
+        config = load_config()
+        if not config or 'nodes' not in config:
+            print("Error: No nodes found in config")
+            return jsonify({'error': 'No nodes configured'}), 500
+        
+        nodes_status = []
+        for node in config['nodes']:
+            status = get_node_status(node)
+            nodes_status.append(status)
+            if status.get('error'):
+                print(f"Error for node {node.get('host')}: {status['error']}")
+        
+        # Evaluate alerts based on current snapshot
+        try:
+            evaluate_alerts(nodes_status)
+        except Exception as e:
+            print(f"Alert evaluation error: {e}")
+            # Never let alert evaluation break the API response
+            pass
+        
+        response = jsonify(nodes_status)
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        print(f"Critical error in get_cluster_status: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/haproxy/server/<action>', methods=['POST'])
 def api_haproxy_server_action(action):
@@ -335,6 +247,62 @@ def api_haproxy_restart():
         }), (200 if ok else 500)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+
+@app.route('/api/slow_queries', methods=['GET'])
+def route_api_slow_queries():
+    # Fix dependency injection
+    from src.slow_queries import get_nodes_status, load_config
+    globals()['get_nodes_status'] = get_nodes_status
+    globals()['load_config'] = load_config
+    return api_slow_queries()
+
+
+@app.route('/api/get_config', methods=['GET'])
+def route_api_get_config():
+    return api_get_config()
+
+@app.route('/api/update_config', methods=['POST'])
+def route_api_update_config():
+    return api_update_config()
+
+@app.route('/api/transactions', methods=['GET'])
+def route_api_transactions():
+    return handle_transactions()
+
+@app.route('/api/process_list', methods=['GET'])
+def route_api_process_list():
+    return handle_process_list()
+
+@app.route('/api/kill_process', methods=['POST'])
+def route_api_kill_process():
+    return handle_kill_process()
+
+@app.route('/api/nodes', methods=['GET'])
+def api_nodes():
+    try:
+        config = load_config()
+        nodes = config.get('nodes', [])
+        
+        # Format nodes data for frontend
+        formatted_nodes = []
+        for i, node in enumerate(nodes):
+            formatted_nodes.append({
+                'host': node.get('host'),
+                'name': node.get('name', f'Node {i+1}'),
+                'port': node.get('port', 3306)
+            })
+        
+        return jsonify({
+            'ok': True,
+            'nodes': formatted_nodes
+        })
+    except Exception as e:
+        return jsonify({
+            'ok': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
