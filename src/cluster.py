@@ -62,9 +62,10 @@ def get_node_status(node_config):
         
         # Import here to avoid circular imports
         from src.haproxy import get_haproxy_server_states
+        from src.config import load_config
         
         # Get HAProxy stats first
-        haproxy_states = get_haproxy_server_states()
+        haproxy_states = get_haproxy_server_states(load_config())
         
         # Get all global status variables
         global_status, provider_options = read_node_status(node_config)
