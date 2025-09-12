@@ -35,7 +35,6 @@ def api_slow_queries():
         # Query to get slow queries
         slow_query_sql = """
         SELECT 
-            id, 
             start_time, 
             user_host, 
             query_time, 
