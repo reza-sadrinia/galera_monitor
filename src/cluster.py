@@ -17,18 +17,29 @@ def calculate_rates(previous_readings, node_key, current_time, total_writes, tot
     return (0, 0, 0)
 
 def read_node_status(node_config):
-    conn = mysql.connector.connect(
-        host=node_config['host'],
-        user=node_config['user'],
-        password=node_config['password'],
-        port=node_config['port']
-    )
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SHOW GLOBAL STATUS")
-    global_status = {row['Variable_name']: row['Value'] for row in cursor.fetchall()}
-    cursor.execute("SHOW VARIABLES LIKE 'wsrep_provider_options'")
-    provider_options = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return global_status, provider_options
+    try:
+        # Check for placeholder values
+        if node_config['password'] in ['your_password_here', 'password', '']:
+            raise Exception(f"Invalid password configuration for {node_config['host']}. Please update config.yaml with actual credentials.")
+        
+        conn = mysql.connector.connect(
+            host=node_config['host'],
+            user=node_config['user'],
+            password=node_config['password'],
+            port=node_config['port'],
+            connect_timeout=5,
+            autocommit=True
+        )
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SHOW GLOBAL STATUS")
+        global_status = {row['Variable_name']: row['Value'] for row in cursor.fetchall()}
+        cursor.execute("SHOW VARIABLES LIKE 'wsrep_provider_options'")
+        provider_options = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return global_status, provider_options
+    except mysql.connector.Error as e:
+        raise Exception(f"MySQL connection failed for {node_config['host']}: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Error reading node status for {node_config['host']}: {str(e)}")
 

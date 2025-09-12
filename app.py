@@ -28,8 +28,18 @@ app = Flask(__name__)
 # State moved to src/state (imported above)
 
 def load_config():
-    with open('config.yaml', 'r') as file:
-        return yaml.safe_load(file)
+    try:
+        with open('config.yaml', 'r') as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        print("Error: config.yaml file not found. Please copy config-example.yaml to config.yaml and configure it.")
+        return {'nodes': []}
+    except yaml.YAMLError as e:
+        print(f"Error parsing config.yaml: {e}")
+        return {'nodes': []}
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        return {'nodes': []}
 
 def parse_wsrep_provider_options(options_str):
     if not options_str:
@@ -295,19 +305,37 @@ def index():
 
 @app.route('/api/status')
 def get_cluster_status():
-    config = load_config()
-    nodes_status = [get_node_status(node) for node in config['nodes']]
-    # Evaluate alerts based on current snapshot
     try:
-        evaluate_alerts(nodes_status)
-    except Exception:
-        # Never let alert evaluation break the API response
-        pass
-    response = jsonify(nodes_status)
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
+        config = load_config()
+        if not config or 'nodes' not in config:
+            print("Error: No nodes found in config")
+            return jsonify({'error': 'No nodes configured'}), 500
+        
+        print(f"Processing {len(config['nodes'])} nodes...")
+        nodes_status = []
+        for node in config['nodes']:
+            print(f"Getting status for node: {node.get('host', 'unknown')}")
+            status = get_node_status(node)
+            nodes_status.append(status)
+            if status.get('error'):
+                print(f"Error for node {node.get('host')}: {status['error']}")
+        
+        # Evaluate alerts based on current snapshot
+        try:
+            evaluate_alerts(nodes_status)
+        except Exception as e:
+            print(f"Alert evaluation error: {e}")
+            # Never let alert evaluation break the API response
+            pass
+        
+        response = jsonify(nodes_status)
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        print(f"Critical error in get_cluster_status: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/haproxy/server/<action>', methods=['POST'])
 def api_haproxy_server_action(action):
