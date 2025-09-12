@@ -104,13 +104,6 @@ function refreshStatus() {
   fetch('/api/status', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
     .then(response => response.json())
     .then(data => {
-      // Store nodes data globally for other modules
-      window.nodesData = data.map(node => ({
-        host: node.host,
-        name: node.host, // Use host as name if name is not available
-        status: node.status
-      }));
-      
       renderOverview(data);
       updateDelayHistories(data);
       renderDelayCharts(data);
@@ -118,6 +111,23 @@ function refreshStatus() {
     })
     .catch(error => console.error('Error fetching status:', error));
 }
+
+// Load nodes data globally for other modules
+function loadNodesData() {
+  if (!window.nodesData) {
+    fetch('/api/nodes')
+      .then(response => response.json())
+      .then(data => {
+        if (data.ok && data.nodes) {
+          window.nodesData = data.nodes;
+        }
+      })
+      .catch(error => console.error('Error loading nodes:', error));
+  }
+}
+
+// Initialize nodes data on page load
+document.addEventListener('DOMContentLoaded', loadNodesData);
 
 let countdownInterval;
 function resetCountdown() {
