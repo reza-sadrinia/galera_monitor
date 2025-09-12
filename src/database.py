@@ -1,12 +1,13 @@
 from flask import request, jsonify
 import mysql.connector
+import yaml
 
 def load_config():
-    # This is a placeholder - the actual function will be imported from app.py
-    pass
+    with open('config.yaml', 'r') as file:
+        return yaml.safe_load(file)
 
 def get_nodes_status():
-    # This is a placeholder - the actual function will be imported from app.py
+    # This function is not used in database module, keeping as placeholder
     pass
 
 def api_transactions():
