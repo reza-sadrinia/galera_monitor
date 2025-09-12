@@ -5,40 +5,23 @@ import time
 
 def api_available_logs():
     try:
-        # Default paths to search for log files
-        default_log_paths = [
-            '/var/log/mysql/',
-            '/var/log/mariadb/',
-            '/var/log/',
-            '/var/lib/mysql/',
-            '/opt/homebrew/var/mysql/data/',
-            '/opt/homebrew/var/log/mysql/'
-        ]
+        # Only look for galera-error.log file
+        galera_error_log_path = '/var/log/mariadb/galera-error.log'
         
         available_logs = []
         
-        # Check each path for log files
-        for path in default_log_paths:
-            if os.path.exists(path):
-                # Look for log files with common extensions
-                for ext in ['*.log', '*.err', '*.error', '*-slow.log']:
-                    log_files = glob.glob(os.path.join(path, ext))
-                    
-                    # Add each log file to the list with metadata
-                    for log_file in log_files:
-                        try:
-                            stat = os.stat(log_file)
-                            available_logs.append({
-                                'path': log_file,
-                                'name': os.path.basename(log_file),
-                                'size': stat.st_size,
-                                'modified': stat.st_mtime
-                            })
-                        except Exception:
-                            pass
-        
-        # Sort by last modification time (newest first)
-        available_logs.sort(key=lambda x: x['modified'], reverse=True)
+        # Check if galera-error.log exists
+        if os.path.exists(galera_error_log_path):
+            try:
+                stat = os.stat(galera_error_log_path)
+                available_logs.append({
+                    'path': galera_error_log_path,
+                    'name': os.path.basename(galera_error_log_path),
+                    'size': stat.st_size,
+                    'modified': stat.st_mtime
+                })
+            except Exception:
+                pass
         
         return jsonify({
             'ok': True,
