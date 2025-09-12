@@ -11,14 +11,10 @@ function initSlowQueries() {
   
   // Add event listeners
   document.getElementById('refresh-slow-queries').addEventListener('click', fetchSlowQueries);
-  document.getElementById('enable-slow-log').addEventListener('click', showEnableSlowLogModal);
   document.getElementById('slow-query-node-select').addEventListener('change', function() {
     currentNodeForSlowQueries = this.value;
     fetchSlowQueries();
   });
-  
-  // Create modal for enabling slow log
-  createEnableSlowLogModal();
   
   // Add tab change listener
   document.getElementById('slow-queries-tab').addEventListener('shown.bs.tab', function() {
@@ -91,7 +87,7 @@ function fetchSlowQueries() {
         hideSlowQueryStatus();
       } else {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center">No slow queries found</td></tr>';
-        showSlowQueryStatus('info', 'No slow queries found. You may need to enable slow query logging.');
+        showSlowQueryStatus('info', 'No slow queries found.');
       }
     })
     .catch(error => {
@@ -183,92 +179,10 @@ function hideSlowQueryStatus() {
 }
 
 // Create modal for enabling slow log
-function createEnableSlowLogModal() {
-  // Create modal element if it doesn't exist
-  if (!document.getElementById('enable-slow-log-modal')) {
-    const modalHtml = `
-      <div class="modal fade" id="enable-slow-log-modal" tabindex="-1" aria-labelledby="enable-slow-log-modal-label" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content bg-dark text-light">
-            <div class="modal-header">
-              <h5 class="modal-title" id="enable-slow-log-modal-label">Enable Slow Query Log</h5>
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <div class="mb-3">
-                <label for="slow-log-threshold" class="form-label">Query Time Threshold (seconds):</label>
-                <input type="number" class="form-control" id="slow-log-threshold" value="1" min="0.1" step="0.1">
-                <small class="text-muted">Queries taking longer than this threshold will be logged</small>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="button" class="btn btn-warning" id="confirm-enable-slow-log">Enable</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Append modal to body
-    const modalContainer = document.createElement('div');
-    modalContainer.innerHTML = modalHtml;
-    document.body.appendChild(modalContainer);
-    
-    // Add event listener for enable button
-    document.getElementById('confirm-enable-slow-log').addEventListener('click', enableSlowLog);
-  }
-}
 
-// Show modal for enabling slow log
-function showEnableSlowLogModal() {
-  if (!currentNodeForSlowQueries) {
-    showSlowQueryStatus('error', 'Please select a node first');
-    return;
-  }
-  
-  // Set current threshold value
-  document.getElementById('slow-log-threshold').value = slowQueryThreshold;
-  
-  // Show modal
-  const modal = new bootstrap.Modal(document.getElementById('enable-slow-log-modal'));
-  modal.show();
-}
-
-// Enable slow query log
-function enableSlowLog() {
-  if (!currentNodeForSlowQueries) return;
-  
-  // Get threshold value
-  slowQueryThreshold = parseFloat(document.getElementById('slow-log-threshold').value) || 1;
-  
-  // Hide modal
-  bootstrap.Modal.getInstance(document.getElementById('enable-slow-log-modal')).hide();
-  
-  // Show loading status
-  showSlowQueryStatus('info', 'Enabling slow query log...');
-  
-  // Call API to enable slow log
-  fetch(`/api/enable_slow_log?host=${encodeURIComponent(currentNodeForSlowQueries)}&query_time=${slowQueryThreshold}`)
-    .then(response => response.json())
-    .then(data => {
-      if (data.error) {
-        showSlowQueryStatus('error', data.error);
-      } else {
-        showSlowQueryStatus('success', `Slow query log enabled with threshold ${slowQueryThreshold}s`);
-        // Fetch slow queries after a short delay
-        setTimeout(fetchSlowQueries, 1000);
-      }
-    })
-    .catch(error => {
-      console.error('Error enabling slow log:', error);
-      showSlowQueryStatus('error', 'Error enabling slow query log');
-    });
-}
 
 // Initialize on document load
 document.addEventListener('DOMContentLoaded', initSlowQueries);
 
 // Expose functions globally
 window.fetchSlowQueries = fetchSlowQueries;
-window.enableSlowLog = enableSlowLog;

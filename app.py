@@ -19,7 +19,7 @@ from src.haproxy import (
 from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates
 from src.alerts import evaluate_alerts as _evaluate_alerts
 from src.logs import api_available_logs, api_server_logs
-from src.slow_queries import api_slow_queries, api_enable_slow_log
+from src.slow_queries import api_slow_queries
 from src.database import api_transactions, api_process_list, api_kill_process
 from src.config import api_get_config, api_update_config
 
@@ -357,9 +357,6 @@ def route_api_slow_queries():
     globals()['load_config'] = load_config
     return api_slow_queries()
 
-@app.route('/api/enable_slow_log', methods=['POST'])
-def route_api_enable_slow_log():
-    return api_enable_slow_log()
 
 @app.route('/api/get_config', methods=['GET'])
 def route_api_get_config():
