@@ -55,34 +55,50 @@ function initTransactionsTab() {
 
 // Populate node selection dropdown
 function populateTransactionsNodeSelect() {
-    $.ajax({
-        url: '/api/nodes',
-        method: 'GET',
-        success: function(response) {
-            if (response.ok) {
-                const nodes = response.nodes;
-                const $select = $('#transactions-node-select');
-                $select.empty();
-                $select.append('<option value="" selected disabled>Select Node</option>');
-                
-                nodes.forEach(node => {
-                    $select.append(`<option value="${node.host}">${node.name} (${node.host})</option>`);
-                });
-                
-                // If there's only one node, select it automatically
-                if (nodes.length === 1) {
-                    $select.val(nodes[0].host);
-                    selectedTransactionsNode = nodes[0].host;
-                    fetchTransactions();
-                }
-            } else {
-                showTransactionsStatus('Failed to load nodes: ' + (response.error || 'Unknown error'), 'danger');
-            }
-        },
-        error: function(xhr, status, error) {
-            showTransactionsStatus('Failed to load nodes: ' + error, 'danger');
+    const nodeSelect = document.getElementById('transactions-node-select');
+    nodeSelect.innerHTML = '';
+    
+    // Check if nodes data is available
+    if (window.nodesData && window.nodesData.length > 0) {
+        // Add default option
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Select Node';
+        defaultOption.selected = true;
+        defaultOption.disabled = true;
+        nodeSelect.appendChild(defaultOption);
+        
+        // Add option for each node
+        for (const node of window.nodesData) {
+            const option = document.createElement('option');
+            option.value = node.host;
+            option.textContent = `${node.name} (${node.host})`;
+            nodeSelect.appendChild(option);
         }
-    });
+        
+        // If there's only one node, select it automatically
+        if (window.nodesData.length === 1) {
+            nodeSelect.value = window.nodesData[0].host;
+            selectedTransactionsNode = window.nodesData[0].host;
+            fetchTransactions();
+        }
+    } else {
+        // Fallback: Load nodes from API
+        fetch('/api/nodes')
+            .then(response => response.json())
+            .then(data => {
+                if (data.ok && data.nodes) {
+                    window.nodesData = data.nodes;
+                    // Recursively call to populate with loaded data
+                    populateTransactionsNodeSelect();
+                } else {
+                    showTransactionsStatus('Failed to load nodes: ' + (data.error || 'Unknown error'), 'danger');
+                }
+            })
+            .catch(error => {
+                showTransactionsStatus('Failed to load nodes: ' + error, 'danger');
+            });
+    }
 }
 
 // Fetch transactions data
