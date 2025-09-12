@@ -18,10 +18,11 @@ def api_slow_queries():
         
         # If host is not specified, use the first node
         if not host:
-            nodes_status = get_nodes_status()
-            if not nodes_status or len(nodes_status) == 0:
+            config = load_config()
+            nodes = config.get('nodes', [])
+            if not nodes:
                 return jsonify({'ok': False, 'error': 'No nodes available'}), 404
-            host = nodes_status[0]['host']
+            host = nodes[0]['host']
         
         # Connect to database
         config = load_config()
@@ -105,10 +106,11 @@ def api_enable_slow_log():
         
         # If host is not specified, use the first node
         if not host:
-            nodes_status = get_nodes_status()
-            if not nodes_status or len(nodes_status) == 0:
+            config = load_config()
+            nodes = config.get('nodes', [])
+            if not nodes:
                 return jsonify({'ok': False, 'error': 'No nodes available'}), 404
-            host = nodes_status[0]['host']
+            host = nodes[0]['host']
         
         # Connect to database
         config = load_config()
@@ -126,6 +128,8 @@ def api_enable_slow_log():
             # Configure slow query log
             cursor.execute(f"SET GLOBAL slow_query_log = {'ON' if enable else 'OFF'};")
             cursor.execute(f"SET GLOBAL long_query_time = {query_time};")
+            # Set slow query log output to TABLE so we can read from slow_log table
+            cursor.execute("SET GLOBAL log_output = 'TABLE';")
             
             # Check current status
             cursor.execute("SHOW GLOBAL VARIABLES LIKE 'slow_query_log';")

@@ -142,7 +142,16 @@ def api_update_config():
             cursor.execute(f"SELECT @@{variable}")
             old_value = cursor.fetchone()[0]
             
-            # Update variable
+            # Update variable - handle numeric values properly
+            if variable in ['long_query_time', 'max_connections', 'max_user_connections', 
+                          'connect_timeout', 'wait_timeout', 'interactive_timeout', 
+                          'query_cache_size', 'query_cache_limit', 'max_allowed_packet', 'expire_logs_days']:
+                # Convert to appropriate numeric type
+                if variable == 'long_query_time':
+                    value = float(value)
+                else:
+                    value = int(value)
+            
             cursor.execute(f"SET GLOBAL {variable} = %s", (value,))
             
             # Confirm change
