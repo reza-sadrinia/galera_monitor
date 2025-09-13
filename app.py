@@ -218,7 +218,19 @@ def get_cluster_status():
             # Never let alert evaluation break the API response
             pass
         
-        response = jsonify(nodes_status)
+        # Add HAProxy weights to the response
+        try:
+            haproxy_weights = get_haproxy_server_weights()
+        except Exception as e:
+            print(f"HAProxy weights error: {e}")
+            haproxy_weights = {}
+        
+        response_data = {
+            'nodes': nodes_status,
+            'haproxy_weights': haproxy_weights
+        }
+        
+        response = jsonify(response_data)
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -259,18 +271,9 @@ def api_haproxy_restart():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
-@app.route('/api/haproxy/weights', methods=['GET'])
-def api_haproxy_get_weights():
-    """Get current weights of all servers"""
-    try:
-        weights = get_haproxy_server_weights()
-        return jsonify({'success': True, 'weights': weights}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 @app.route('/api/haproxy/server/weight', methods=['POST'])
 def api_haproxy_set_weight():
-    """Set weight for a specific server"""
+    """Set weight for a specific server using socket"""
     try:
         body = request.get_json(silent=True) or {}
         config = load_config()
@@ -290,7 +293,11 @@ def api_haproxy_set_weight():
         success, msg = haproxy_set_server_weight(backend_name, server_name, weight)
         return jsonify({'success': success, 'message': msg}), (200 if success else 500)
     except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+
 
 
 

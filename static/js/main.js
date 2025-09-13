@@ -107,10 +107,10 @@ function refreshStatus() {
   fetch('/api/status', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
     .then(response => response.json())
     .then(data => {
-      renderOverview(data);
-      updateDelayHistories(data);
-      renderDelayCharts(data);
-      loadServerWeights();
+      renderOverview(data.nodes || data);
+      updateDelayHistories(data.nodes || data);
+      renderDelayCharts(data.nodes || data);
+      loadServerWeights(data.haproxy_weights);
       resetCountdown();
     })
     .catch(error => console.error('Error fetching status:', error));
@@ -179,6 +179,27 @@ function showWeightModal(host, currentWeight) {
   $('#weightModal').modal('show');
 }
 
+function showAlert(type, message) {
+  // Remove any existing alerts
+  $('.alert-notification').remove();
+  
+  // Create new alert
+  const alertHtml = `
+    <div class="alert alert-${type} alert-dismissible fade show alert-notification" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  `;
+  
+  // Add to body
+  $('body').append(alertHtml);
+  
+  // Auto-hide after 5 seconds
+  setTimeout(() => {
+    $('.alert-notification').alert('close');
+  }, 5000);
+}
+
 function setServerWeight() {
   const host = $('#serverHost').val();
   const weight = parseInt($('#serverWeight').val());
@@ -213,33 +234,27 @@ function setServerWeight() {
   });
 }
 
-function loadServerWeights() {
-  $.get('/api/haproxy/weights')
-  .done(function(data) {
-    if (data.success && data.weights) {
-      // Update weight displays for each server
-      Object.keys(data.weights).forEach(backend => {
-        if (data.weights[backend]) {
-          Object.keys(data.weights[backend]).forEach(server => {
-            const weight = data.weights[backend][server];
-            const weightElement = $(`#weight-${safeId(server)}`);
-            if (weightElement.length > 0) {
-              weightElement.text(weight);
-              // Update the onclick handler with current weight
-              const setWeightBtn = weightElement.closest('.instance-info').find('button[onclick*="showWeightModal"]');
-              if (setWeightBtn.length > 0) {
-                const host = server;
-                setWeightBtn.attr('onclick', `showWeightModal('${host}', ${weight})`);
-              }
+function loadServerWeights(weights) {
+  if (weights) {
+    // Update weight displays for each server
+    Object.keys(weights).forEach(backend => {
+      if (weights[backend]) {
+        Object.keys(weights[backend]).forEach(server => {
+          const weight = weights[backend][server];
+          const weightElement = $(`#weight-${safeId(server)}`);
+          if (weightElement.length > 0) {
+            weightElement.text(weight);
+            // Update the onclick handler with current weight
+            const setWeightBtn = weightElement.closest('.instance-info').find('button[onclick*="showWeightModal"]');
+            if (setWeightBtn.length > 0) {
+              const host = server;
+              setWeightBtn.attr('onclick', `showWeightModal('${host}', ${weight})`);
             }
-          });
-        }
-      });
-    }
-  })
-  .fail(function(xhr, status, error) {
-    console.log('Failed to load server weights:', error);
-  });
+          }
+        });
+      }
+    });
+  }
 }
 
 window.refreshStatus = refreshStatus;
