@@ -33,7 +33,7 @@ function createNodeRow(nodeData) {
   const weight = nodeData.weight || status.haproxy_weight || 1;
   return `
     <div class="node-row">
-      <div class="d-flex flex-column">
+      <div class="d-flex flex-column h-100">
         <div class="instance-info">
           <h5 class="status-up">${nodeData.host} <span class="status-up">UP</span></h5>
           <div>OSU: ${status.wsrep_cluster_status || '-'}</div>
@@ -46,9 +46,11 @@ function createNodeRow(nodeData) {
             <button class="btn btn-sm btn-outline-info" onclick="showWeightModal('${nodeData.host}', ${weight})">Set Weight</button>
           </div>
         </div>
-        <div class="cert-fail-info">
-          <span class="cert-fail-label">certFail:</span>
-          <span class="cert-fail-value">${formatMetricValue(status.wsrep_local_cert_failures, 'number')}</span>
+        <div class="cert-fail-info flex-grow-1 d-flex align-items-end">
+          <div>
+            <span class="cert-fail-label">certFail:</span>
+            <span class="cert-fail-value">${formatMetricValue(status.wsrep_local_cert_failures, 'number')}</span>
+          </div>
         </div>
       </div>
       <div class="metrics-container">
