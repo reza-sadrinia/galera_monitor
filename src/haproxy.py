@@ -161,28 +161,49 @@ def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
         return False, 'Invalid weight value'
     
     try:
-        # Try setting weight using HAProxy admin interface
-        resp = requests.post(url, data={
+        # Debug: log the parameters being sent
+        print(f"Setting weight for backend={backend_name}, server={server_name}, weight={weight}")
+        
+        # Try setting weight using HAProxy admin interface with GET method
+        params = {
+            'b': backend_name, 
+            's': server_name, 
+            'action': 'set weight',
+            'w': str(weight)
+        }
+        resp = requests.get(url, params=params, auth=auth, timeout=5)
+        
+        print(f"GET attempt response: {resp.status_code}, content: {resp.text[:200]}")
+        
+        if resp.status_code in [200, 303, 302]:
+            return True, 'OK'
+        
+        # Try with POST method
+        resp2 = requests.post(url, data={
             'b': backend_name, 
             's': server_name, 
             'action': 'set weight',
             'w': str(weight)
         }, auth=auth, timeout=5)
         
-        if resp.status_code in [200, 303, 302]:
+        print(f"POST attempt response: {resp2.status_code}, content: {resp2.text[:200]}")
+        
+        if resp2.status_code in [200, 303, 302]:
             return True, 'OK'
         
-        # Alternative method for some HAProxy versions
-        resp2 = requests.post(url, data={
+        # Alternative action format
+        resp3 = requests.post(url, data={
             'b': backend_name, 
             's': server_name, 
             'action': f'set weight {weight}'
         }, auth=auth, timeout=5)
         
-        if resp2.status_code in [200, 303, 302]:
+        print(f"Alternative format response: {resp3.status_code}, content: {resp3.text[:200]}")
+        
+        if resp3.status_code in [200, 303, 302]:
             return True, 'OK'
             
-        return False, f"HTTP {resp.status_code}/{resp2.status_code}"
+        return False, f"HTTP GET:{resp.status_code} POST:{resp2.status_code} ALT:{resp3.status_code}"
     except Exception as e:
         return False, str(e)
 
