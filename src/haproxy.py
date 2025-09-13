@@ -174,6 +174,14 @@ def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
     try:
         # Debug: log the parameters being sent
         print(f"Setting weight for backend={backend_name}, server={server_name}, weight={weight}")
+        print(f"Admin URL: {url}")
+        print(f"Auth: {auth.username}:{auth.password}")
+        
+        # Print curl commands for manual testing
+        print(f"\nCurl commands for manual testing:")
+        print(f"GET: curl -u '{auth.username}:{auth.password}' '{url}?b={backend_name}&s={server_name}&action=set%20weight&w={weight}'")
+        print(f"POST: curl -u '{auth.username}:{auth.password}' -d 'b={backend_name}&s={server_name}&action=set weight&w={weight}' '{url}'")
+        print(f"ALT: curl -u '{auth.username}:{auth.password}' -d 'b={backend_name}&s={server_name}&action=set weight {weight}' '{url}'\n")
         
         # Try setting weight using HAProxy admin interface with GET method
         params = {
@@ -186,6 +194,7 @@ def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
         
         print(f"GET attempt response: {resp.status_code}, content: {resp.text[:200]}")
         
+        # HAProxy often returns 303 (redirect) for successful admin actions
         if resp.status_code in [200, 303, 302]:
             return True, 'OK'
         
