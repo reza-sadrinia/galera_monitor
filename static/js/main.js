@@ -33,13 +33,13 @@ function createNodeRow(nodeData) {
   const weight = nodeData.weight || status.haproxy_weight || 1;
   return `
     <div class="node-row">
-      <div>
+      <div class="d-flex flex-column gap-2">
         <div class="instance-info">
           <h5 class="status-up">${nodeData.host} <span class="status-up">UP</span></h5>
           <div>OSU: ${status.wsrep_cluster_status || '-'}</div>
           <div class="version-tag">Ver: ${status.wsrep_provider_version || '-'}</div>
           <div>Current: ${status.haproxy_current || '0'}</div>
-          <div>Weight: <span id="weight-${safeId(nodeData.host)}" class="badge bg-info">${weight}</span></div>
+          <div>Weight: <span id="weight-${safeId(nodeData.host)}">${weight}</span></div>
           <div class="mt-2 d-flex gap-2 flex-wrap">
             <button class="btn btn-sm btn-outline-success" onclick="hapEnable('${nodeData.host}')">Enable</button>
             <button class="btn btn-sm btn-outline-danger" onclick="hapDisable('${nodeData.host}')">Disable</button>
