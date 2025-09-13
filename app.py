@@ -16,7 +16,8 @@ from src.haproxy import (
     get_haproxy_admin_url_and_auth as _hap_admin_url_auth,
     haproxy_admin_server_action as _hap_admin_action,
     get_haproxy_server_weights as _hap_weights,
-    haproxy_set_server_weight as _hap_set_weight
+    haproxy_set_server_weight as _hap_set_weight,
+    get_haproxy_server_name_for_host as _hap_server_name_for_host
 )
 from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates, get_node_status, parse_wsrep_provider_options
 from src.alerts import evaluate_alerts as _evaluate_alerts
@@ -272,16 +273,20 @@ def api_haproxy_set_weight():
     """Set weight for a specific server"""
     try:
         body = request.get_json(silent=True) or {}
-        backend_name = body.get('backend_name') or load_config().get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
-        server_name = body.get('server_name')
+        config = load_config()
+        backend_name = body.get('backend_name') or config.get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
+        server_host = body.get('server_name')  # This is actually the host IP
         weight = body.get('weight')
         
-        if not server_name:
+        if not server_host:
             return jsonify({'success': False, 'error': 'server_name is required'}), 400
         
         if weight is None:
             return jsonify({'success': False, 'error': 'weight is required'}), 400
             
+        # Convert host IP to HAProxy server name
+        server_name = get_haproxy_server_name_for_host(server_host)
+        
         success, msg = haproxy_set_server_weight(backend_name, server_name, weight)
         return jsonify({'success': success, 'message': msg}), (200 if success else 500)
     except Exception as e:

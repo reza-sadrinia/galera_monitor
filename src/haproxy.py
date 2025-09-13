@@ -138,6 +138,15 @@ def get_haproxy_server_weights(load_config):
     except Exception:
         return {}
 
+def get_haproxy_server_name_for_host(load_config, host_ip):
+    """Convert host IP to HAProxy server name"""
+    config = load_config()
+    nodes = config.get('nodes', [])
+    for i, node in enumerate(nodes):
+        if node['host'] == host_ip:
+            return f"node{i+1}"
+    return host_ip
+
 def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
     """Set weight for a specific server in HAProxy backend"""
     url, auth = get_haproxy_admin_url_and_auth(load_config)

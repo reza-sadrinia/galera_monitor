@@ -189,7 +189,6 @@ function setServerWeight() {
   }
   
   $.post('/api/haproxy/server/weight', {
-    backend_name: 'galera',
     server_name: host,
     weight: weight
   })
