@@ -188,9 +188,14 @@ function setServerWeight() {
     return;
   }
   
-  $.post('/api/haproxy/server/weight', {
-    server_name: host,
-    weight: weight
+  $.ajax({
+    url: '/api/haproxy/server/weight',
+    type: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({
+      server_name: host,
+      weight: weight
+    })
   })
   .done(function(data) {
     if (data.success) {
