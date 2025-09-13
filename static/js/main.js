@@ -33,7 +33,7 @@ function createNodeRow(nodeData) {
   const weight = nodeData.weight || status.haproxy_weight || 1;
   return `
     <div class="node-row">
-      <div class="d-flex flex-column gap-2">
+      <div class="d-flex flex-column">
         <div class="instance-info">
           <h5 class="status-up">${nodeData.host} <span class="status-up">UP</span></h5>
           <div>OSU: ${status.wsrep_cluster_status || '-'}</div>
