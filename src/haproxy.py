@@ -94,9 +94,20 @@ def get_haproxy_admin_url_and_auth(load_config):
     haproxy_config = config.get('haproxy', {})
     if not haproxy_config:
         return None, None
-    path = str(haproxy_config.get('stats_path') or '/stats')
-    path_admin = path.replace(';csv', '')
-    url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{path_admin}"
+    
+    # Get admin path from config, fallback to stats_path without ;csv
+    admin_path = haproxy_config.get('admin_path')
+    if not admin_path:
+        stats_path = str(haproxy_config.get('stats_path') or '/stats')
+        admin_path = stats_path.replace(';csv', '')
+        # If stats_path doesn't have admin interface, try common patterns
+        if not any(x in admin_path for x in ['/admin', '?admin', '&admin']):
+            if admin_path.endswith('/'):
+                admin_path += 'admin'
+            else:
+                admin_path += '/admin'
+    
+    url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{admin_path}"
     auth = HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password'])
     return url, auth
 
