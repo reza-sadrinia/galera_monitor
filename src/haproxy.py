@@ -94,11 +94,125 @@ def get_haproxy_admin_url_and_auth(load_config):
     haproxy_config = config.get('haproxy', {})
     if not haproxy_config:
         return None, None
-    path = str(haproxy_config.get('stats_path') or '/stats')
-    path_admin = path.replace(';csv', '')
-    url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{path_admin}"
+    
+    # Get admin path from config, fallback to stats_path without ;csv
+    admin_path = haproxy_config.get('admin_path')
+    if not admin_path:
+        stats_path = str(haproxy_config.get('stats_path') or '/stats')
+        admin_path = stats_path.replace(';csv', '')
+        # If stats_path doesn't have admin interface, try common patterns
+        if not any(x in admin_path for x in ['/admin', '?admin', '&admin']):
+            if admin_path.endswith('/'):
+                admin_path += 'admin'
+            else:
+                admin_path += '/admin'
+    
+    url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{admin_path}"
     auth = HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password'])
     return url, auth
+
+def get_haproxy_server_weights(load_config):
+    """Get current weight of all servers in the backend"""
+    config = load_config()
+    haproxy_config = config.get('haproxy', {})
+    if not haproxy_config:
+        return {}
+    
+    try:
+        url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{haproxy_config['stats_path']}"
+        response = requests.get(url, auth=HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password']), timeout=5)
+        if response.status_code != 200:
+            return {}
+        
+        lines = response.text.strip().split('\n')
+        headers = lines[0].split(',')
+        nodes = config.get('nodes', [])
+        server_mapping = { f"node{i+1}": node['host'] for i, node in enumerate(nodes) }
+        backend_name = haproxy_config.get('backend_name', 'galera_cluster_backend')
+        
+        result = {backend_name: {}}
+        
+        for line in lines[1:]:
+            fields = line.split(',')
+            if len(fields) >= len(headers):
+                data = dict(zip(headers, fields))
+                if data['# pxname'] == backend_name and data['svname'] not in ['FRONTEND', 'BACKEND']:
+                    server_name = data['svname']
+                    if server_name in server_mapping:
+                        server_ip = server_mapping[server_name]
+                        try:
+                            weight = int(data.get('weight', 1))
+                        except ValueError:
+                            weight = 1
+                        result[backend_name][server_ip] = weight
+        return result
+    except Exception:
+        return {}
+
+def get_haproxy_server_name_for_host(load_config, host_ip):
+    """Convert host IP to HAProxy server name"""
+    config = load_config()
+    nodes = config.get('nodes', [])
+    for i, node in enumerate(nodes):
+        if node['host'] == host_ip:
+            return f"node{i+1}"
+    return host_ip
+
+def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
+    """Set weight for a specific server in HAProxy backend using admin socket"""
+    config = load_config()
+    haproxy_config = config.get('haproxy', {})
+    
+    socket_host = haproxy_config.get('admin_socket_host', '127.0.0.1')
+    socket_port = haproxy_config.get('admin_socket_port')
+    
+    if not socket_port:
+        return False, 'HAProxy admin socket port not configured'
+    
+    try:
+        weight = int(weight)
+        if weight < 0 or weight > 256:
+            return False, 'Weight must be between 0 and 256'
+    except ValueError:
+        return False, 'Invalid weight value'
+    
+    try:
+        import subprocess
+        
+        # Construct the HAProxy admin command
+        command = f"set weight {backend_name}/{server_name} {weight}"
+        
+        # Use socat to send command to HAProxy admin socket
+        socat_command = [
+            'socat', 'stdio', f'tcp:{socket_host}:{socket_port}'
+        ]
+        
+        # Execute the command
+        process = subprocess.Popen(
+            socat_command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        stdout, stderr = process.communicate(input=command + '\n', timeout=10)
+        
+        if process.returncode == 0:
+            # Check if the response indicates success
+            if "Backend not found" in stdout or "No such server" in stdout:
+                return False, f"HAProxy error: {stdout.strip()}"
+            else:
+                return True, "Weight updated successfully"
+        else:
+            return False, f"Socket communication failed: {stderr.strip()}"
+        
+    except subprocess.TimeoutExpired:
+        return False, "Timeout communicating with HAProxy socket"
+    except FileNotFoundError:
+        return False, "socat command not found. Please install socat."
+    except Exception as e:
+        return False, str(e)
 
 def haproxy_admin_server_action(load_config, backend_name, server_name, action):
     url, auth = get_haproxy_admin_url_and_auth(load_config)

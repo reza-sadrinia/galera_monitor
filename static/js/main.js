@@ -30,6 +30,7 @@ function safeId(text) { return String(text || '').replace(/[^a-zA-Z0-9_-]/g, '_'
 
 function createNodeRow(nodeData) {
   const status = nodeData.status || {};
+  const weight = nodeData.weight || status.haproxy_weight || 1;
   return `
     <div class="node-row">
       <div>
@@ -38,9 +39,11 @@ function createNodeRow(nodeData) {
           <div>OSU: ${status.wsrep_cluster_status || '-'}</div>
           <div class="version-tag">Ver: ${status.wsrep_provider_version || '-'}</div>
           <div>Current: ${status.haproxy_current || '0'}</div>
-          <div class="mt-2 d-flex gap-2">
-            <button class="btn btn-sm btn-outline-success" onclick="hapEnable('${nodeData.host}')">Enable in HAProxy</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="hapDisable('${nodeData.host}')">Disable in HAProxy</button>
+          <div>Weight: <span id="weight-${safeId(nodeData.host)}" class="badge bg-info">${weight}</span></div>
+          <div class="mt-2 d-flex gap-2 flex-wrap">
+            <button class="btn btn-sm btn-outline-success" onclick="hapEnable('${nodeData.host}')">Enable</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="hapDisable('${nodeData.host}')">Disable</button>
+            <button class="btn btn-sm btn-outline-info" onclick="showWeightModal('${nodeData.host}', ${weight})">Set Weight</button>
           </div>
         </div>
         <div class="cert-fail-info">
@@ -104,9 +107,10 @@ function refreshStatus() {
   fetch('/api/status', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
     .then(response => response.json())
     .then(data => {
-      renderOverview(data);
-      updateDelayHistories(data);
-      renderDelayCharts(data);
+      renderOverview(data.nodes || data);
+      updateDelayHistories(data.nodes || data);
+      renderDelayCharts(data.nodes || data);
+      loadServerWeights(data.haproxy_weights);
       resetCountdown();
     })
     .catch(error => console.error('Error fetching status:', error));
@@ -169,8 +173,95 @@ function hapDisable(host) {
     .catch(err => alert('Disable failed: ' + err.message));
 }
 
+function showWeightModal(host, currentWeight) {
+  $('#serverHost').val(host);
+  $('#serverWeight').val(currentWeight);
+  $('#weightModal').modal('show');
+}
+
+function showAlert(type, message) {
+  // Remove any existing alerts
+  $('.alert-notification').remove();
+  
+  // Create new alert
+  const alertHtml = `
+    <div class="alert alert-${type} alert-dismissible fade show alert-notification" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  `;
+  
+  // Add to body
+  $('body').append(alertHtml);
+  
+  // Auto-hide after 5 seconds
+  setTimeout(() => {
+    $('.alert-notification').alert('close');
+  }, 5000);
+}
+
+function setServerWeight() {
+  const host = $('#serverHost').val();
+  const weight = parseInt($('#serverWeight').val());
+  
+  if (isNaN(weight) || weight < 0 || weight > 256) {
+    showAlert('danger', 'Weight must be a number between 0 and 256');
+    return;
+  }
+  
+  $.ajax({
+    url: '/api/haproxy/server/weight',
+    type: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({
+      server_name: host,
+      weight: weight
+    })
+  })
+  .done(function(data) {
+    if (data.success) {
+      showAlert('success', `Server ${host} weight set to ${weight}`);
+      $('#weightModal').modal('hide');
+      // Update the weight display immediately
+      $(`#weight-${safeId(host)}`).text(weight);
+      refreshStatus();
+    } else {
+      showAlert('danger', `Failed to set server weight: ${data.error}`);
+    }
+  })
+  .fail(function() {
+    showAlert('danger', 'Failed to communicate with server');
+  });
+}
+
+function loadServerWeights(weights) {
+  if (weights) {
+    // Update weight displays for each server
+    Object.keys(weights).forEach(backend => {
+      if (weights[backend]) {
+        Object.keys(weights[backend]).forEach(server => {
+          const weight = weights[backend][server];
+          const weightElement = $(`#weight-${safeId(server)}`);
+          if (weightElement.length > 0) {
+            weightElement.text(weight);
+            // Update the onclick handler with current weight
+            const setWeightBtn = weightElement.closest('.instance-info').find('button[onclick*="showWeightModal"]');
+            if (setWeightBtn.length > 0) {
+              const host = server;
+              setWeightBtn.attr('onclick', `showWeightModal('${host}', ${weight})`);
+            }
+          }
+        });
+      }
+    });
+  }
+}
+
 window.refreshStatus = refreshStatus;
 window.confirmRestart = confirmRestart;
 window.hapEnable = hapEnable;
 window.hapDisable = hapDisable;
+window.showWeightModal = showWeightModal;
+window.setServerWeight = setServerWeight;
+window.loadServerWeights = loadServerWeights;
 

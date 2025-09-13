@@ -29,6 +29,8 @@ haproxy:
   stats_user: "admin"
   stats_password: "your_password"
   backend_name: "galera_cluster_backend"
+  admin_socket_host: "127.0.0.1"
+  admin_socket_port: 5555
 
 telegram:
   enabled: false

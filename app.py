@@ -14,7 +14,10 @@ from src.haproxy import (
     get_haproxy_stats as _hap_stats,
     get_haproxy_server_states as _hap_states,
     get_haproxy_admin_url_and_auth as _hap_admin_url_auth,
-    haproxy_admin_server_action as _hap_admin_action
+    haproxy_admin_server_action as _hap_admin_action,
+    get_haproxy_server_weights as _hap_weights,
+    haproxy_set_server_weight as _hap_set_weight,
+    get_haproxy_server_name_for_host as _hap_server_name_for_host
 )
 from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates, get_node_status, parse_wsrep_provider_options
 from src.alerts import evaluate_alerts as _evaluate_alerts
@@ -74,6 +77,14 @@ def haproxy_admin_server_action(backend_name, server_name, action):
     """
     # delegate to src.haproxy without changing behavior
     return _hap_admin_action(load_config, backend_name, server_name, action)
+
+def get_haproxy_server_weights():
+    """Get current weights of all servers in the backend"""
+    return _hap_weights(load_config)
+
+def haproxy_set_server_weight(backend_name, server_name, weight):
+    """Set weight for a specific server in HAProxy backend"""
+    return _hap_set_weight(load_config, backend_name, server_name, weight)
 
 def get_haproxy_server_name_for_host(host: str) -> str:
     """Resolve HAProxy server name given node host.
@@ -207,7 +218,19 @@ def get_cluster_status():
             # Never let alert evaluation break the API response
             pass
         
-        response = jsonify(nodes_status)
+        # Add HAProxy weights to the response
+        try:
+            haproxy_weights = get_haproxy_server_weights()
+        except Exception as e:
+            print(f"HAProxy weights error: {e}")
+            haproxy_weights = {}
+        
+        response_data = {
+            'nodes': nodes_status,
+            'haproxy_weights': haproxy_weights
+        }
+        
+        response = jsonify(response_data)
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -247,6 +270,30 @@ def api_haproxy_restart():
         }), (200 if ok else 500)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/haproxy/server/weight', methods=['POST'])
+def api_haproxy_set_weight():
+    """Set weight for a specific server using socket"""
+    try:
+        body = request.get_json(silent=True) or {}
+        config = load_config()
+        backend_name = body.get('backend_name') or config.get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
+        server_host = body.get('server_name')  # This is actually the host IP
+        weight = body.get('weight')
+        
+        if not server_host:
+            return jsonify({'success': False, 'error': 'server_name is required'}), 400
+        
+        if weight is None:
+            return jsonify({'success': False, 'error': 'weight is required'}), 400
+            
+        # Convert host IP to HAProxy server name
+        server_name = get_haproxy_server_name_for_host(server_host)
+        
+        success, msg = haproxy_set_server_weight(backend_name, server_name, weight)
+        return jsonify({'success': success, 'message': msg}), (200 if success else 500)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 
