@@ -297,10 +297,6 @@ def api_haproxy_set_weight():
 
 
 
-
-
-
-
 @app.route('/api/slow_queries', methods=['GET'])
 def route_api_slow_queries():
     # Fix dependency injection

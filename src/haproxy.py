@@ -179,13 +179,8 @@ def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
     try:
         import subprocess
         
-        # Debug: log the parameters being sent
-        print(f"Setting weight for backend={backend_name}, server={server_name}, weight={weight}")
-        print(f"Socket: {socket_host}:{socket_port}")
-        
         # Construct the HAProxy admin command
         command = f"set weight {backend_name}/{server_name} {weight}"
-        print(f"HAProxy command: {command}")
         
         # Use socat to send command to HAProxy admin socket
         socat_command = [
@@ -202,8 +197,6 @@ def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
         )
         
         stdout, stderr = process.communicate(input=command + '\n', timeout=10)
-        
-        print(f"HAProxy response: {stdout.strip()}")
         
         if process.returncode == 0:
             # Check if the response indicates success
