@@ -100,6 +100,82 @@ def get_haproxy_admin_url_and_auth(load_config):
     auth = HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password'])
     return url, auth
 
+def get_haproxy_server_weights(load_config):
+    """Get current weight of all servers in the backend"""
+    config = load_config()
+    haproxy_config = config.get('haproxy', {})
+    if not haproxy_config:
+        return {}
+    
+    try:
+        url = f"http://{haproxy_config['host']}:{haproxy_config['stats_port']}{haproxy_config['stats_path']}"
+        response = requests.get(url, auth=HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password']), timeout=5)
+        if response.status_code != 200:
+            return {}
+        
+        lines = response.text.strip().split('\n')
+        headers = lines[0].split(',')
+        result = {}
+        nodes = config.get('nodes', [])
+        server_mapping = { f"node{i+1}": node['host'] for i, node in enumerate(nodes) }
+        backend_name = haproxy_config.get('backend_name', 'galera_cluster_backend')
+        
+        for line in lines[1:]:
+            fields = line.split(',')
+            if len(fields) >= len(headers):
+                data = dict(zip(headers, fields))
+                if data['# pxname'] == backend_name and data['svname'] not in ['FRONTEND', 'BACKEND']:
+                    server_name = data['svname']
+                    if server_name in server_mapping:
+                        server_ip = server_mapping[server_name]
+                        try:
+                            weight = int(data.get('weight', 1))
+                        except ValueError:
+                            weight = 1
+                        result[server_ip] = weight
+        return result
+    except Exception:
+        return {}
+
+def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
+    """Set weight for a specific server in HAProxy backend"""
+    url, auth = get_haproxy_admin_url_and_auth(load_config)
+    if not url:
+        return False, 'HAProxy config not found'
+    
+    try:
+        weight = int(weight)
+        if weight < 0 or weight > 256:
+            return False, 'Weight must be between 0 and 256'
+    except ValueError:
+        return False, 'Invalid weight value'
+    
+    try:
+        # Try setting weight using HAProxy admin interface
+        resp = requests.post(url, data={
+            'b': backend_name, 
+            's': server_name, 
+            'action': 'set weight',
+            'w': str(weight)
+        }, auth=auth, timeout=5)
+        
+        if resp.status_code in [200, 303, 302]:
+            return True, 'OK'
+        
+        # Alternative method for some HAProxy versions
+        resp2 = requests.post(url, data={
+            'b': backend_name, 
+            's': server_name, 
+            'action': f'set weight {weight}'
+        }, auth=auth, timeout=5)
+        
+        if resp2.status_code in [200, 303, 302]:
+            return True, 'OK'
+            
+        return False, f"HTTP {resp.status_code}/{resp2.status_code}"
+    except Exception as e:
+        return False, str(e)
+
 def haproxy_admin_server_action(load_config, backend_name, server_name, action):
     url, auth = get_haproxy_admin_url_and_auth(load_config)
     if not url:

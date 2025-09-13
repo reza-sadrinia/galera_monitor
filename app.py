@@ -14,7 +14,9 @@ from src.haproxy import (
     get_haproxy_stats as _hap_stats,
     get_haproxy_server_states as _hap_states,
     get_haproxy_admin_url_and_auth as _hap_admin_url_auth,
-    haproxy_admin_server_action as _hap_admin_action
+    haproxy_admin_server_action as _hap_admin_action,
+    get_haproxy_server_weights as _hap_weights,
+    haproxy_set_server_weight as _hap_set_weight
 )
 from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates, get_node_status, parse_wsrep_provider_options
 from src.alerts import evaluate_alerts as _evaluate_alerts
@@ -74,6 +76,14 @@ def haproxy_admin_server_action(backend_name, server_name, action):
     """
     # delegate to src.haproxy without changing behavior
     return _hap_admin_action(load_config, backend_name, server_name, action)
+
+def get_haproxy_server_weights():
+    """Get current weights of all servers in the backend"""
+    return _hap_weights(load_config)
+
+def haproxy_set_server_weight(backend_name, server_name, weight):
+    """Set weight for a specific server in HAProxy backend"""
+    return _hap_set_weight(load_config, backend_name, server_name, weight)
 
 def get_haproxy_server_name_for_host(host: str) -> str:
     """Resolve HAProxy server name given node host.
@@ -245,6 +255,38 @@ def api_haproxy_restart():
             'stdout': completed.stdout,
             'stderr': completed.stderr
         }), (200 if ok else 500)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/haproxy/weights', methods=['GET'])
+def api_haproxy_get_weights():
+    """Get current weights of all servers"""
+    try:
+        weights = get_haproxy_server_weights()
+        return jsonify({'ok': True, 'weights': weights}), 200
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/haproxy/server/weight', methods=['POST'])
+def api_haproxy_set_weight():
+    """Set weight for a specific server"""
+    try:
+        body = request.get_json(silent=True) or {}
+        backend = body.get('backend') or load_config().get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
+        server = body.get('server')
+        host = body.get('host')
+        weight = body.get('weight')
+        
+        if not server:
+            if not host:
+                return jsonify({'ok': False, 'error': 'server or host is required'}), 400
+            server = get_haproxy_server_name_for_host(host)
+        
+        if weight is None:
+            return jsonify({'ok': False, 'error': 'weight is required'}), 400
+            
+        ok, msg = haproxy_set_server_weight(backend, server, weight)
+        return jsonify({'ok': ok, 'message': msg}), (200 if ok else 500)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

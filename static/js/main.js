@@ -30,6 +30,7 @@ function safeId(text) { return String(text || '').replace(/[^a-zA-Z0-9_-]/g, '_'
 
 function createNodeRow(nodeData) {
   const status = nodeData.status || {};
+  const weight = nodeData.weight || 1;
   return `
     <div class="node-row">
       <div>
@@ -38,9 +39,11 @@ function createNodeRow(nodeData) {
           <div>OSU: ${status.wsrep_cluster_status || '-'}</div>
           <div class="version-tag">Ver: ${status.wsrep_provider_version || '-'}</div>
           <div>Current: ${status.haproxy_current || '0'}</div>
-          <div class="mt-2 d-flex gap-2">
-            <button class="btn btn-sm btn-outline-success" onclick="hapEnable('${nodeData.host}')">Enable in HAProxy</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="hapDisable('${nodeData.host}')">Disable in HAProxy</button>
+          <div>Weight: <span id="weight-${safeId(nodeData.host)}">${weight}</span></div>
+          <div class="mt-2 d-flex gap-2 flex-wrap">
+            <button class="btn btn-sm btn-outline-success" onclick="hapEnable('${nodeData.host}')">Enable</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="hapDisable('${nodeData.host}')">Disable</button>
+            <button class="btn btn-sm btn-outline-info" onclick="showWeightModal('${nodeData.host}', ${weight})">Set Weight</button>
           </div>
         </div>
         <div class="cert-fail-info">
@@ -107,6 +110,7 @@ function refreshStatus() {
       renderOverview(data);
       updateDelayHistories(data);
       renderDelayCharts(data);
+      loadServerWeights();
       resetCountdown();
     })
     .catch(error => console.error('Error fetching status:', error));
@@ -169,8 +173,67 @@ function hapDisable(host) {
     .catch(err => alert('Disable failed: ' + err.message));
 }
 
+function showWeightModal(host, currentWeight) {
+  $('#serverHost').val(host);
+  $('#serverWeight').val(currentWeight);
+  $('#weightModal').modal('show');
+}
+
+function setServerWeight() {
+  const host = $('#serverHost').val();
+  const weight = parseInt($('#serverWeight').val());
+  
+  if (isNaN(weight) || weight < 0 || weight > 256) {
+    showAlert('danger', 'Weight must be a number between 0 and 256');
+    return;
+  }
+  
+  $.post('/api/haproxy/server/weight', {
+    backend_name: 'galera',
+    server_name: host,
+    weight: weight
+  })
+  .done(function(data) {
+    if (data.success) {
+      showAlert('success', `Server ${host} weight set to ${weight}`);
+      $('#weightModal').modal('hide');
+      // Update the weight display immediately
+      $(`#weight-${safeId(host)}`).text(weight);
+      refreshStatus();
+    } else {
+      showAlert('danger', `Failed to set server weight: ${data.error}`);
+    }
+  })
+  .fail(function() {
+    showAlert('danger', 'Failed to communicate with server');
+  });
+}
+
+function loadServerWeights() {
+  $.get('/api/haproxy/weights')
+  .done(function(data) {
+    if (data.success && data.weights) {
+      // Update weight displays for each server
+      Object.keys(data.weights).forEach(backend => {
+        if (data.weights[backend]) {
+          Object.keys(data.weights[backend]).forEach(server => {
+            const weight = data.weights[backend][server];
+            $(`#weight-${safeId(server)}`).text(weight);
+          });
+        }
+      });
+    }
+  })
+  .fail(function() {
+    console.log('Failed to load server weights');
+  });
+}
+
 window.refreshStatus = refreshStatus;
 window.confirmRestart = confirmRestart;
 window.hapEnable = hapEnable;
 window.hapDisable = hapDisable;
+window.showWeightModal = showWeightModal;
+window.setServerWeight = setServerWeight;
+window.loadServerWeights = loadServerWeights;
 
