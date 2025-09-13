@@ -159,10 +159,15 @@ def get_haproxy_server_name_for_host(load_config, host_ip):
     return host_ip
 
 def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
-    """Set weight for a specific server in HAProxy backend"""
-    url, auth = get_haproxy_admin_url_and_auth(load_config)
-    if not url:
-        return False, 'HAProxy config not found'
+    """Set weight for a specific server in HAProxy backend using admin socket"""
+    config = load_config()
+    haproxy_config = config.get('haproxy', {})
+    
+    socket_host = haproxy_config.get('admin_socket_host', '127.0.0.1')
+    socket_port = haproxy_config.get('admin_socket_port')
+    
+    if not socket_port:
+        return False, 'HAProxy admin socket port not configured'
     
     try:
         weight = int(weight)
@@ -172,58 +177,47 @@ def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
         return False, 'Invalid weight value'
     
     try:
+        import subprocess
+        
         # Debug: log the parameters being sent
         print(f"Setting weight for backend={backend_name}, server={server_name}, weight={weight}")
-        print(f"Admin URL: {url}")
-        print(f"Auth: {auth.username}:{auth.password}")
+        print(f"Socket: {socket_host}:{socket_port}")
         
-        # Print curl commands for manual testing
-        print(f"\nCurl commands for manual testing:")
-        print(f"GET: curl -u '{auth.username}:{auth.password}' '{url}?b={backend_name}&s={server_name}&action=set%20weight&w={weight}'")
-        print(f"POST: curl -u '{auth.username}:{auth.password}' -d 'b={backend_name}&s={server_name}&action=set weight&w={weight}' '{url}'")
-        print(f"ALT: curl -u '{auth.username}:{auth.password}' -d 'b={backend_name}&s={server_name}&action=set weight {weight}' '{url}'\n")
+        # Construct the HAProxy admin command
+        command = f"set weight {backend_name}/{server_name} {weight}"
+        print(f"HAProxy command: {command}")
         
-        # Try setting weight using HAProxy admin interface with GET method
-        params = {
-            'b': backend_name, 
-            's': server_name, 
-            'action': 'set weight',
-            'w': str(weight)
-        }
-        resp = requests.get(url, params=params, auth=auth, timeout=5)
+        # Use socat to send command to HAProxy admin socket
+        socat_command = [
+            'socat', 'stdio', f'tcp:{socket_host}:{socket_port}'
+        ]
         
-        print(f"GET attempt response: {resp.status_code}, content: {resp.text[:200]}")
+        # Execute the command
+        process = subprocess.Popen(
+            socat_command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
         
-        # HAProxy often returns 303 (redirect) for successful admin actions
-        if resp.status_code in [200, 303, 302]:
-            return True, 'OK'
+        stdout, stderr = process.communicate(input=command + '\n', timeout=10)
         
-        # Try with POST method
-        resp2 = requests.post(url, data={
-            'b': backend_name, 
-            's': server_name, 
-            'action': 'set weight',
-            'w': str(weight)
-        }, auth=auth, timeout=5)
+        print(f"HAProxy response: {stdout.strip()}")
         
-        print(f"POST attempt response: {resp2.status_code}, content: {resp2.text[:200]}")
+        if process.returncode == 0:
+            # Check if the response indicates success
+            if "Backend not found" in stdout or "No such server" in stdout:
+                return False, f"HAProxy error: {stdout.strip()}"
+            else:
+                return True, "Weight updated successfully"
+        else:
+            return False, f"Socket communication failed: {stderr.strip()}"
         
-        if resp2.status_code in [200, 303, 302]:
-            return True, 'OK'
-        
-        # Alternative action format
-        resp3 = requests.post(url, data={
-            'b': backend_name, 
-            's': server_name, 
-            'action': f'set weight {weight}'
-        }, auth=auth, timeout=5)
-        
-        print(f"Alternative format response: {resp3.status_code}, content: {resp3.text[:200]}")
-        
-        if resp3.status_code in [200, 303, 302]:
-            return True, 'OK'
-            
-        return False, f"HTTP GET:{resp.status_code} POST:{resp2.status_code} ALT:{resp3.status_code}"
+    except subprocess.TimeoutExpired:
+        return False, "Timeout communicating with HAProxy socket"
+    except FileNotFoundError:
+        return False, "socat command not found. Please install socat."
     except Exception as e:
         return False, str(e)
 
