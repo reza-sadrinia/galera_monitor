@@ -263,30 +263,27 @@ def api_haproxy_get_weights():
     """Get current weights of all servers"""
     try:
         weights = get_haproxy_server_weights()
-        return jsonify({'ok': True, 'weights': weights}), 200
+        return jsonify({'success': True, 'weights': weights}), 200
     except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/haproxy/server/weight', methods=['POST'])
 def api_haproxy_set_weight():
     """Set weight for a specific server"""
     try:
         body = request.get_json(silent=True) or {}
-        backend = body.get('backend') or load_config().get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
-        server = body.get('server')
-        host = body.get('host')
+        backend_name = body.get('backend_name') or load_config().get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
+        server_name = body.get('server_name')
         weight = body.get('weight')
         
-        if not server:
-            if not host:
-                return jsonify({'ok': False, 'error': 'server or host is required'}), 400
-            server = get_haproxy_server_name_for_host(host)
+        if not server_name:
+            return jsonify({'success': False, 'error': 'server_name is required'}), 400
         
         if weight is None:
-            return jsonify({'ok': False, 'error': 'weight is required'}), 400
+            return jsonify({'success': False, 'error': 'weight is required'}), 400
             
-        ok, msg = haproxy_set_server_weight(backend, server, weight)
-        return jsonify({'ok': ok, 'message': msg}), (200 if ok else 500)
+        success, msg = haproxy_set_server_weight(backend_name, server_name, weight)
+        return jsonify({'success': success, 'message': msg}), (200 if success else 500)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

@@ -30,7 +30,7 @@ function safeId(text) { return String(text || '').replace(/[^a-zA-Z0-9_-]/g, '_'
 
 function createNodeRow(nodeData) {
   const status = nodeData.status || {};
-  const weight = nodeData.weight || 1;
+  const weight = nodeData.weight || status.haproxy_weight || 1;
   return `
     <div class="node-row">
       <div>
@@ -39,7 +39,7 @@ function createNodeRow(nodeData) {
           <div>OSU: ${status.wsrep_cluster_status || '-'}</div>
           <div class="version-tag">Ver: ${status.wsrep_provider_version || '-'}</div>
           <div>Current: ${status.haproxy_current || '0'}</div>
-          <div>Weight: <span id="weight-${safeId(nodeData.host)}">${weight}</span></div>
+          <div>Weight: <span id="weight-${safeId(nodeData.host)}" class="badge bg-info">${weight}</span></div>
           <div class="mt-2 d-flex gap-2 flex-wrap">
             <button class="btn btn-sm btn-outline-success" onclick="hapEnable('${nodeData.host}')">Enable</button>
             <button class="btn btn-sm btn-outline-danger" onclick="hapDisable('${nodeData.host}')">Disable</button>
@@ -218,14 +218,23 @@ function loadServerWeights() {
         if (data.weights[backend]) {
           Object.keys(data.weights[backend]).forEach(server => {
             const weight = data.weights[backend][server];
-            $(`#weight-${safeId(server)}`).text(weight);
+            const weightElement = $(`#weight-${safeId(server)}`);
+            if (weightElement.length > 0) {
+              weightElement.text(weight);
+              // Update the onclick handler with current weight
+              const setWeightBtn = weightElement.closest('.instance-info').find('button[onclick*="showWeightModal"]');
+              if (setWeightBtn.length > 0) {
+                const host = server;
+                setWeightBtn.attr('onclick', `showWeightModal('${host}', ${weight})`);
+              }
+            }
           });
         }
       });
     }
   })
-  .fail(function() {
-    console.log('Failed to load server weights');
+  .fail(function(xhr, status, error) {
+    console.log('Failed to load server weights:', error);
   });
 }
 

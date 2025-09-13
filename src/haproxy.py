@@ -115,10 +115,11 @@ def get_haproxy_server_weights(load_config):
         
         lines = response.text.strip().split('\n')
         headers = lines[0].split(',')
-        result = {}
         nodes = config.get('nodes', [])
         server_mapping = { f"node{i+1}": node['host'] for i, node in enumerate(nodes) }
         backend_name = haproxy_config.get('backend_name', 'galera_cluster_backend')
+        
+        result = {backend_name: {}}
         
         for line in lines[1:]:
             fields = line.split(',')
@@ -132,7 +133,7 @@ def get_haproxy_server_weights(load_config):
                             weight = int(data.get('weight', 1))
                         except ValueError:
                             weight = 1
-                        result[server_ip] = weight
+                        result[backend_name][server_ip] = weight
         return result
     except Exception:
         return {}
