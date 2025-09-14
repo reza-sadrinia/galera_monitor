@@ -73,7 +73,7 @@ def get_node_status(node_config):
                 return {'nodes': []}
         
         # Get HAProxy stats first
-        haproxy_states = get_haproxy_server_states(load_config)
+        haproxy_states = get_haproxy_server_states()
         
         # Get all global status variables
         global_status, provider_options = read_node_status(node_config)
