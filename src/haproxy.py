@@ -1,6 +1,9 @@
 from datetime import datetime
 import requests
 from requests.auth import HTTPBasicAuth
+import subprocess
+from flask import jsonify, request
+from src.config_utils import load_config, get_restart_command
 
 def parse_wsrep_provider_options(options_str):
     if not options_str:
@@ -13,7 +16,7 @@ def parse_wsrep_provider_options(options_str):
             result[key.strip()] = value.strip()
     return result
 
-def get_haproxy_stats(load_config):
+def get_haproxy_stats():
     config = load_config()
     haproxy_config = config.get('haproxy', {})
     if not haproxy_config:
@@ -45,7 +48,7 @@ def get_haproxy_stats(load_config):
     except Exception:
         return {}
 
-def get_haproxy_server_states(load_config):
+def get_haproxy_server_states():
     config = load_config()
     haproxy_config = config.get('haproxy', {})
     if not haproxy_config:
@@ -89,7 +92,7 @@ def get_haproxy_server_states(load_config):
         print(f"Warning: HAProxy connection failed: {str(e)}")
         return {}
 
-def get_haproxy_admin_url_and_auth(load_config):
+def get_haproxy_admin_url_and_auth():
     config = load_config()
     haproxy_config = config.get('haproxy', {})
     if not haproxy_config:
@@ -111,7 +114,7 @@ def get_haproxy_admin_url_and_auth(load_config):
     auth = HTTPBasicAuth(haproxy_config['stats_user'], haproxy_config['stats_password'])
     return url, auth
 
-def get_haproxy_server_weights(load_config):
+def get_haproxy_server_weights():
     """Get current weight of all servers in the backend"""
     config = load_config()
     haproxy_config = config.get('haproxy', {})
@@ -149,7 +152,7 @@ def get_haproxy_server_weights(load_config):
     except Exception:
         return {}
 
-def get_haproxy_server_name_for_host(load_config, host_ip):
+def get_haproxy_server_name_for_host(host_ip):
     """Convert host IP to HAProxy server name"""
     config = load_config()
     nodes = config.get('nodes', [])
@@ -158,7 +161,7 @@ def get_haproxy_server_name_for_host(load_config, host_ip):
             return f"node{i+1}"
     return host_ip
 
-def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
+def haproxy_set_server_weight(backend_name, server_name, weight):
     """Set weight for a specific server in HAProxy backend using admin socket"""
     config = load_config()
     haproxy_config = config.get('haproxy', {})
@@ -214,8 +217,8 @@ def haproxy_set_server_weight(load_config, backend_name, server_name, weight):
     except Exception as e:
         return False, str(e)
 
-def haproxy_admin_server_action(load_config, backend_name, server_name, action):
-    url, auth = get_haproxy_admin_url_and_auth(load_config)
+def haproxy_admin_server_action(backend_name, server_name, action):
+    url, auth = get_haproxy_admin_url_and_auth()
     if not url:
         return False, 'HAProxy config not found'
     if action not in ['enable', 'disable']:
@@ -230,4 +233,43 @@ def haproxy_admin_server_action(load_config, backend_name, server_name, action):
         return False, f"HTTP {resp.status_code}/{resp2.status_code}"
     except Exception as e:
         return False, str(e)
+
+def api_haproxy_restart():
+    """API endpoint for HAProxy restart"""
+    try:
+        cmd = get_restart_command()
+        # Execute the restart command locally. SECURITY: In production, protect this endpoint!
+        completed = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+        ok = completed.returncode == 0
+        return jsonify({
+            'ok': ok,
+            'returncode': completed.returncode,
+            'stdout': completed.stdout,
+            'stderr': completed.stderr
+        }), (200 if ok else 500)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+def api_haproxy_set_weight():
+    """API endpoint for setting HAProxy server weight"""
+    try:
+        body = request.get_json(silent=True) or {}
+        config = load_config()
+        backend_name = body.get('backend_name') or config.get('haproxy', {}).get('backend_name', 'galera_cluster_backend')
+        server_host = body.get('server_name')  # This is actually the host IP
+        weight = body.get('weight')
+        
+        if not server_host:
+            return jsonify({'success': False, 'error': 'server_name is required'}), 400
+        
+        if weight is None:
+            return jsonify({'success': False, 'error': 'weight is required'}), 400
+            
+        # Convert host IP to HAProxy server name
+        server_name = get_haproxy_server_name_for_host(server_host)
+        
+        success, msg = haproxy_set_server_weight(backend_name, server_name, weight)
+        return jsonify({'success': success, 'message': msg}), (200 if success else 500)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 

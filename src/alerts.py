@@ -1,57 +1,11 @@
 from datetime import datetime
-import requests
+from src.config_utils import get_alert_config
+from src.telegram import telegram_enabled, send_telegram_message, should_send_alert
+from src.state import alert_state
 
-def get_alert_config(load_config):
-    config = load_config()
-    alerts_cfg = config.get('alerts', {}) or {}
-    telegram_cfg = config.get('telegram', {}) or {}
-    defaults = {
-        'enabled': True,
-        'cooldown_seconds': 300,
-        'qps': {'min': None, 'max': None},
-        'wps': {'min': None, 'max': None},
-        'flow_control': {'active': True, 'paused_threshold': None},
-        'haproxy': {'connections_critical': None},
-        'node': {'offline': True}
-    }
-    def merge_dict(base, override):
-        result = dict(base)
-        for k, v in (override or {}).items():
-            if isinstance(v, dict) and isinstance(result.get(k), dict):
-                result[k] = merge_dict(result[k], v)
-            else:
-                result[k] = v
-        return result
-    return { 'alerts': merge_dict(defaults, alerts_cfg), 'telegram': telegram_cfg }
-
-def telegram_enabled(telegram_cfg):
-    return bool(telegram_cfg.get('enabled')) and bool(telegram_cfg.get('bot_token')) and bool(telegram_cfg.get('chat_id'))
-
-def send_telegram_message(telegram_cfg, message):
-    if not telegram_enabled(telegram_cfg):
-        return False
-    try:
-        token = telegram_cfg['bot_token']
-        chat_id = telegram_cfg['chat_id']
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = { 'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML', 'disable_web_page_preview': True }
-        resp = requests.post(url, json=payload, timeout=5)
-        return resp.status_code == 200
-    except Exception:
-        return False
-
-def should_send_alert(alert_state, node_key, alert_key, cooldown_seconds):
-    now = datetime.now()
-    node_state = alert_state.setdefault(node_key, {})
-    last_times = node_state.setdefault('last_sent', {})
-    last_time = last_times.get(alert_key)
-    if last_time is None or (now - last_time).total_seconds() >= cooldown_seconds:
-        last_times[alert_key] = now
-        return True
-    return False
-
-def evaluate_alerts(load_config, alert_state, nodes_status):
-    cfg = get_alert_config(load_config)
+def evaluate_alerts(nodes_status):
+    """Evaluate alerts for all nodes"""
+    cfg = get_alert_config()
     alerts_cfg = cfg['alerts']
     telegram_cfg = cfg['telegram']
     if not alerts_cfg.get('enabled'):
