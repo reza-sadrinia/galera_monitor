@@ -163,16 +163,24 @@ function hapEnable(host) {
   if (!confirm('Enable traffic to ' + host + ' in HAProxy?')) return;
   fetch('/api/haproxy/server/enable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host }) })
     .then(r => r.json())
-    .then(res => { if (!res.ok) throw new Error(res.error || res.message || 'Failed'); refreshStatus(); })
-    .catch(err => alert('Enable failed: ' + err.message));
+    .then(res => { 
+      if (!res.ok) throw new Error(res.error || res.message || 'Failed'); 
+      showAlert('success', `Server ${host} enabled successfully`);
+      refreshStatus(); 
+    })
+    .catch(err => showAlert('danger', 'Enable failed: ' + err.message));
 }
 
 function hapDisable(host) {
   if (!confirm('Disable traffic to ' + host + ' in HAProxy?')) return;
   fetch('/api/haproxy/server/disable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host }) })
     .then(r => r.json())
-    .then(res => { if (!res.ok) throw new Error(res.error || res.message || 'Failed'); refreshStatus(); })
-    .catch(err => alert('Disable failed: ' + err.message));
+    .then(res => { 
+      if (!res.ok) throw new Error(res.error || res.message || 'Failed'); 
+      showAlert('success', `Server ${host} disabled successfully`);
+      refreshStatus(); 
+    })
+    .catch(err => showAlert('danger', 'Disable failed: ' + err.message));
 }
 
 function showWeightModal(host, currentWeight) {
