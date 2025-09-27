@@ -48,6 +48,10 @@ alerts:
   qps:
     min: null              # set to a number to enable
     max: null
+
+authentication:
+  username: "admin"
+  password: "admin123"
   wps:
     min: null
     max: null

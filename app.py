@@ -1,4 +1,5 @@
 from flask import Flask, render_template, jsonify, request
+from flask_login import login_required
 import subprocess
 import mysql.connector
 from datetime import datetime, timedelta
@@ -23,12 +24,16 @@ from src.haproxy import (
 )
 from src.cluster import read_node_status as _read_node_status, calculate_rates as _calc_rates, get_node_status, parse_wsrep_provider_options
 from src.alerts import evaluate_alerts
-
 from src.slow_queries import api_slow_queries
 from src.transactions import handle_transactions, handle_process_list, handle_kill_process
 from src.config import api_get_config, api_update_config
+from src.auth import AuthManager
 
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-change-this-in-production'  # Change this in production!
+
+# Initialize authentication
+auth_manager = AuthManager(app)
 
 # State moved to src/state (imported above)
 
@@ -40,11 +45,15 @@ app = Flask(__name__)
 
 # Alert and telegram functions moved to src/ modules
 
+# Authentication routes are now handled by AuthManager in src/auth.py
+
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
 @app.route('/api/status')
+@login_required
 def get_cluster_status():
     try:
         config = load_config()
@@ -89,6 +98,7 @@ def get_cluster_status():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/haproxy/server/<action>', methods=['POST'])
+@login_required
 def api_haproxy_server_action(action):
     try:
         body = request.get_json(silent=True) or {}
@@ -105,16 +115,19 @@ def api_haproxy_server_action(action):
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 @app.route('/api/haproxy/restart', methods=['POST'])
+@login_required
 def route_api_haproxy_restart():
     return api_haproxy_restart()
 
 @app.route('/api/haproxy/server/weight', methods=['POST'])
+@login_required
 def route_api_haproxy_set_weight():
     return api_haproxy_set_weight()
 
 
 
 @app.route('/api/slow_queries', methods=['GET'])
+@login_required
 def route_api_slow_queries():
     # Fix dependency injection
     from src.slow_queries import get_nodes_status, load_config
@@ -124,26 +137,32 @@ def route_api_slow_queries():
 
 
 @app.route('/api/get_config', methods=['GET'])
+@login_required
 def route_api_get_config():
     return api_get_config()
 
 @app.route('/api/update_config', methods=['POST'])
+@login_required
 def route_api_update_config():
     return api_update_config()
 
 @app.route('/api/transactions', methods=['GET'])
+@login_required
 def route_api_transactions():
     return handle_transactions()
 
 @app.route('/api/process_list', methods=['GET'])
+@login_required
 def route_api_process_list():
     return handle_process_list()
 
 @app.route('/api/kill_process', methods=['POST'])
+@login_required
 def route_api_kill_process():
     return handle_kill_process()
 
 @app.route('/api/nodes', methods=['GET'])
+@login_required
 def api_nodes():
     try:
         config = load_config()
@@ -169,4 +188,4 @@ def api_nodes():
         }), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)
