@@ -181,7 +181,7 @@ def api_process_list():
         cursor = conn.cursor(dictionary=True)
         
         try:
-            # Get list of active processes
+            # Get list of active processes (excluding sleeping processes and system processes)
             cursor.execute("""
                 SELECT 
                     ID as id,
@@ -194,6 +194,10 @@ def api_process_list():
                     INFO as info,
                     TIME_MS as time_ms
                 FROM information_schema.PROCESSLIST
+                WHERE COMMAND != 'Sleep' 
+                   AND COMMAND != 'Daemon'
+                   AND USER != 'system user'
+                   AND (INFO IS NOT NULL AND INFO != '')
                 ORDER BY TIME DESC
             """)
             processes = cursor.fetchall()
