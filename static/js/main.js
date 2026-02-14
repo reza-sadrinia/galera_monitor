@@ -83,6 +83,7 @@ function createNodeRow(nodeData) {
           <div class="metric-row"><span class="metric-label">Writes/sec:</span><span class="metric-value">${formatMetricValue(status.writes_per_second, 'number')}</span></div>
           <div class="metric-row"><span class="metric-label">Reads/sec:</span><span class="metric-value">${formatMetricValue(status.reads_per_second, 'number')}</span></div>
           <div class="metric-row"><span class="metric-label">Lock Tables:</span><span class="metric-value">${formatMetricValue(status.Com_lock_tables, 'number')}</span></div>
+          <div class="metric-row"><span class="metric-label">wsrep_cluster_size:</span><span class="metric-value">${formatMetricValue(status.wsrep_cluster_size)}</span></div>
           <div class="metric-row"><span class="metric-label">wsrep_local_state_comment:</span><span class="metric-value metric-value-wrap">${formatMetricValue(status.wsrep_local_state_comment)}</span></div>
           <div class="metric-row"><span class="metric-label">wsrep_cluster_status:</span><span class="metric-value">${formatMetricValue(status.wsrep_cluster_status)}</span></div>
         </div>

@@ -96,7 +96,6 @@ def get_node_status(node_config):
             'wsrep_provider_version',
             'wsrep_thread_count',
             'wsrep_cluster_conf_id',
-            'wsrep_cluster_size',
             'wsrep_cluster_state_uuid',
             'wsrep_local_state',
             'wsrep_ready',
